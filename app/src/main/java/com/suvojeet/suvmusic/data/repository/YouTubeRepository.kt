@@ -92,6 +92,49 @@ class YouTubeRepository @Inject constructor(
         }
     }
 
+    /**
+     * Get search suggestions for autocomplete.
+     */
+    suspend fun getSearchSuggestions(query: String): List<String> = withContext(Dispatchers.IO) {
+        if (query.isBlank()) return@withContext emptyList()
+        
+        try {
+            val url = "https://suggestqueries-clients6.youtube.com/complete/search?client=youtube&ds=yt&q=${java.net.URLEncoder.encode(query, "UTF-8")}"
+            
+            val request = okhttp3.Request.Builder()
+                .url(url)
+                .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                .build()
+            
+            val response = okHttpClient.newCall(request).execute()
+            val body = response.body?.string() ?: return@withContext emptyList()
+            
+            // Response format: window.google.ac.h(["query",[["suggestion1",0],["suggestion2",0],...]])
+            val jsonStart = body.indexOf("[[")
+            val jsonEnd = body.lastIndexOf("]]") + 2
+            
+            if (jsonStart == -1 || jsonEnd <= jsonStart) return@withContext emptyList()
+            
+            val suggestionsArray = JSONArray(body.substring(jsonStart, jsonEnd))
+            val suggestions = mutableListOf<String>()
+            
+            for (i in 0 until suggestionsArray.length()) {
+                val suggestionItem = suggestionsArray.optJSONArray(i)
+                if (suggestionItem != null && suggestionItem.length() > 0) {
+                    val text = suggestionItem.optString(0)
+                    if (text.isNotBlank()) {
+                        suggestions.add(text)
+                    }
+                }
+            }
+            
+            suggestions.take(8) // Limit to 8 suggestions
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
     suspend fun getStreamUrl(videoId: String): String? = withContext(Dispatchers.IO) {
         try {
             val streamUrl = "https://www.youtube.com/watch?v=$videoId"
