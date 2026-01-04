@@ -1,5 +1,6 @@
 package com.suvojeet.suvmusic.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
@@ -21,6 +23,8 @@ import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -32,6 +36,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -45,9 +50,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import com.suvojeet.suvmusic.R
 import com.suvojeet.suvmusic.data.model.AudioQuality
 import com.suvojeet.suvmusic.ui.viewmodel.SettingsViewModel
 import kotlinx.coroutines.launch
@@ -59,10 +67,12 @@ import kotlinx.coroutines.launch
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
-    onLoginClick: () -> Unit = {}
+    onLoginClick: () -> Unit = {},
+    onAboutClick: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var showQualitySheet by remember { mutableStateOf(false) }
+    var showSignOutDialog by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
     
@@ -79,6 +89,7 @@ fun SettingsScreen(
             text = "Settings",
             style = MaterialTheme.typography.headlineLarge,
             color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(horizontal = 20.dp)
         )
         
@@ -88,23 +99,60 @@ fun SettingsScreen(
         SectionTitle("Account")
         
         if (uiState.isLoggedIn) {
+            // Signed in with YT Music logo
             ListItem(
-                headlineContent = { Text("Signed in") },
-                supportingContent = { Text("YouTube Music connected") },
+                headlineContent = { 
+                    Text(
+                        text = "Signed in",
+                        fontWeight = FontWeight.Medium
+                    ) 
+                },
+                supportingContent = { 
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // YT Music logo (using icon as fallback)
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = Color(0xFFFF0000),
+                            modifier = Modifier.size(20.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier
+                                    .padding(2.dp)
+                                    .size(16.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "YouTube Music connected",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
                 leadingContent = {
                     if (uiState.userAvatarUrl != null) {
                         AsyncImage(
                             model = uiState.userAvatarUrl,
                             contentDescription = "Avatar",
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(48.dp)
                                 .clip(CircleShape)
                         )
                     } else {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = null
-                        )
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(12.dp)
+                            )
+                        }
                     }
                 },
                 colors = ListItemDefaults.colors(
@@ -112,11 +160,31 @@ fun SettingsScreen(
                 )
             )
             
-            SettingsItem(
-                icon = Icons.AutoMirrored.Filled.Logout,
-                title = "Sign out",
-                subtitle = "Disconnect from YouTube Music",
-                onClick = { viewModel.logout() }
+            // Sign Out button with warning
+            ListItem(
+                headlineContent = { 
+                    Text(
+                        text = "Sign out",
+                        color = MaterialTheme.colorScheme.error
+                    ) 
+                },
+                supportingContent = { 
+                    Text(
+                        text = "Disconnect from YouTube Music",
+                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                    ) 
+                },
+                leadingContent = {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.Logout,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                },
+                modifier = Modifier.clickable { showSignOutDialog = true },
+                colors = ListItemDefaults.colors(
+                    containerColor = Color.Transparent
+                )
             )
         } else {
             SettingsItem(
@@ -171,12 +239,56 @@ fun SettingsScreen(
         
         SettingsItem(
             icon = Icons.Default.Info,
-            title = "SuvMusic",
-            subtitle = "Version 1.0.0",
-            onClick = { }
+            title = "About SuvMusic",
+            subtitle = "Version, credits & more",
+            onClick = onAboutClick
         )
         
         Spacer(modifier = Modifier.height(100.dp))
+    }
+    
+    // Sign Out Warning Dialog
+    if (showSignOutDialog) {
+        AlertDialog(
+            onDismissRequest = { showSignOutDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "Sign out?",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "You will be disconnected from YouTube Music. Your playlists and recommendations will no longer be available until you sign in again."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.logout()
+                        showSignOutDialog = false
+                    }
+                ) {
+                    Text(
+                        text = "Sign Out",
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSignOutDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
     
     // Audio Quality Bottom Sheet
@@ -229,6 +341,7 @@ private fun SectionTitle(title: String) {
         text = title,
         style = MaterialTheme.typography.titleMedium,
         color = MaterialTheme.colorScheme.primary,
+        fontWeight = FontWeight.SemiBold,
         modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
     )
 }

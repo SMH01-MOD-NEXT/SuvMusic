@@ -13,6 +13,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.suvojeet.suvmusic.data.SessionManager
 import com.suvojeet.suvmusic.data.model.PlayerState
+import com.suvojeet.suvmusic.ui.screens.AboutScreen
 import com.suvojeet.suvmusic.ui.screens.HomeScreen
 import com.suvojeet.suvmusic.ui.screens.LibraryScreen
 import com.suvojeet.suvmusic.ui.screens.PlayerScreen
@@ -89,7 +90,16 @@ fun NavGraph(
             SettingsScreen(
                 onLoginClick = {
                     navController.navigate(Destination.YouTubeLogin.route)
+                },
+                onAboutClick = {
+                    navController.navigate(Destination.About.route)
                 }
+            )
+        }
+        
+        composable(Destination.About.route) {
+            AboutScreen(
+                onBack = { navController.popBackStack() }
             )
         }
         
