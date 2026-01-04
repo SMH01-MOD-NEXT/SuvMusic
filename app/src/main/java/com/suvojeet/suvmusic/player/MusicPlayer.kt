@@ -159,8 +159,14 @@ class MusicPlayer @Inject constructor(
             }
             
             try {
+                _playerState.update { it.copy(isLoading = true) }
+                
                 val mediaItems = queue.mapIndexed { index, s -> createMediaItem(s, index == startIndex) }
                 mediaController?.let { controller ->
+                    // Instant switch: stop and clear immediately
+                    controller.stop()
+                    controller.clearMediaItems()
+                    
                     controller.setMediaItems(mediaItems, startIndex, 0L)
                     controller.prepare()
                     controller.play()

@@ -83,6 +83,7 @@ import com.suvojeet.suvmusic.data.model.Song
 import com.suvojeet.suvmusic.ui.components.AddToPlaylistSheet
 import com.suvojeet.suvmusic.ui.components.CreatePlaylistDialog
 import com.suvojeet.suvmusic.ui.components.DominantColors
+import com.suvojeet.suvmusic.ui.components.LoadingArtworkOverlay
 import com.suvojeet.suvmusic.ui.components.SongActionsSheet
 import com.suvojeet.suvmusic.ui.components.SongCreditsSheet
 import com.suvojeet.suvmusic.ui.components.WaveformSeeker
@@ -187,7 +188,8 @@ fun PlayerScreen(
                 AlbumArtwork(
                     imageUrl = highResThumbnail,
                     title = song?.title,
-                    dominantColors = dominantColors
+                    dominantColors = dominantColors,
+                    isLoading = playerState.isLoading
                 )
                 
                 Spacer(modifier = Modifier.height(32.dp))
@@ -365,7 +367,8 @@ private fun PlayerTopBar(
 private fun AlbumArtwork(
     imageUrl: String?,
     title: String?,
-    dominantColors: DominantColors
+    dominantColors: DominantColors,
+    isLoading: Boolean = false
 ) {
     val context = LocalContext.current
     
@@ -401,6 +404,10 @@ private fun AlbumArtwork(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+        
+        LoadingArtworkOverlay(
+            isVisible = isLoading
+        )
     }
 }
 

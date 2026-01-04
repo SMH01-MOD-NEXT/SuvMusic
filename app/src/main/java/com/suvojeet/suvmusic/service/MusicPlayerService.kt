@@ -24,7 +24,18 @@ class MusicPlayerService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         
+        val loadControl = androidx.media3.exoplayer.DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                32 * 1024, // Min buffer 32s
+                64 * 1024, // Max buffer 64s
+                500,       // Buffer for playback 0.5s (Faster start)
+                1000       // Buffer for rebuffer 1s
+            )
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .build()
+            
         val player = ExoPlayer.Builder(this)
+            .setLoadControl(loadControl)
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
