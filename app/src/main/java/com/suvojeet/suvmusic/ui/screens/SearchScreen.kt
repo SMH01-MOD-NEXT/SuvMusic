@@ -60,7 +60,7 @@ import com.suvojeet.suvmusic.ui.viewmodel.SearchViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(
-    onSongClick: (Song) -> Unit,
+    onSongClick: (List<Song>, Int) -> Unit,
     viewModel: SearchViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -166,10 +166,10 @@ fun SearchScreen(
                 contentPadding = PaddingValues(bottom = 140.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(uiState.results) { song ->
+                itemsIndexed(uiState.results) { index, song ->
                     MusicCard(
                         song = song,
-                        onClick = { onSongClick(song) }
+                        onClick = { onSongClick(uiState.results, index) }
                     )
                 }
                 

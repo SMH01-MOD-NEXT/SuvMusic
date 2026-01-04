@@ -12,6 +12,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.suvojeet.suvmusic.data.SessionManager
+import com.suvojeet.suvmusic.data.model.Song
 import com.suvojeet.suvmusic.data.model.PlayerState
 import com.suvojeet.suvmusic.ui.screens.AboutScreen
 import com.suvojeet.suvmusic.ui.screens.HomeScreen
@@ -30,7 +31,7 @@ fun NavGraph(
     navController: NavHostController,
     playerState: PlayerState,
     sessionManager: SessionManager,
-    onPlaySong: (Any) -> Unit,
+    onPlaySong: (List<Song>, Int) -> Unit,
     onPlayPause: () -> Unit,
     onSeekTo: (Long) -> Unit,
     onNext: () -> Unit,
@@ -66,7 +67,7 @@ fun NavGraph(
     ) {
         composable(Destination.Home.route) {
             HomeScreen(
-                onSongClick = { onPlaySong(it) },
+                onSongClick = { songs, index -> onPlaySong(songs, index) },
                 onPlaylistClick = { 
                     navController.navigate(Destination.Playlist(it.getPlaylistId()).route) 
                 }
@@ -75,13 +76,13 @@ fun NavGraph(
         
         composable(Destination.Search.route) {
             SearchScreen(
-                onSongClick = { onPlaySong(it) }
+                onSongClick = { songs, index -> onPlaySong(songs, index) }
             )
         }
         
         composable(Destination.Library.route) {
             LibraryScreen(
-                onSongClick = { onPlaySong(it) },
+                onSongClick = { songs, index -> onPlaySong(songs, index) },
                 onPlaylistClick = { 
                      navController.navigate(Destination.Playlist(it.getPlaylistId()).route) 
                 }
@@ -142,15 +143,16 @@ fun NavGraph(
         ) { backStackEntry ->
             PlaylistScreen(
                 onBackClick = { navController.popBackStack() },
-                onSongClick = { onPlaySong(it) },
+                onSongClick = { songs, index -> onPlaySong(songs, index) },
                 onPlayAll = { songs -> 
                     if (songs.isNotEmpty()) {
-                         onPlaySong(songs.first()) // Simplified for now, should play all
+                         onPlaySong(songs, 0)
                     }
                 },
                 onShufflePlay = { songs ->
                      if (songs.isNotEmpty()) {
-                         onPlaySong(songs.shuffled().first()) // Simplified
+                         val shuffled = songs.shuffled()
+                         onPlaySong(shuffled, 0)
                      }
                 }
             )

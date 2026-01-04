@@ -161,9 +161,9 @@ fun SuvMusicApp() {
                 navController = navController,
                 playerState = playerState,
                 sessionManager = sessionManager,
-                onPlaySong = { any ->
-                    if (any is Song) {
-                        playerViewModel.playSong(any)
+                onPlaySong = { songs, index ->
+                    if (songs.isNotEmpty() && index in songs.indices) {
+                        playerViewModel.playSong(songs[index], songs, index)
                     }
                 },
                 onPlayPause = { playerViewModel.togglePlayPause() },

@@ -38,7 +38,7 @@ import com.suvojeet.suvmusic.ui.viewmodel.LibraryViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryScreen(
-    onSongClick: (Song) -> Unit,
+    onSongClick: (List<Song>, Int) -> Unit,
     onPlaylistClick: (PlaylistDisplayItem) -> Unit,
     viewModel: LibraryViewModel = hiltViewModel()
 ) {
@@ -51,6 +51,7 @@ fun LibraryScreen(
             .fillMaxSize()
             .statusBarsPadding()
     ) {
+        // ... (lines 54-81 unchanged)
         Spacer(modifier = Modifier.height(16.dp))
         
         // Title
@@ -119,7 +120,7 @@ private fun PlaylistsTab(
 private fun OfflineTab(
     localSongs: List<Song>,
     downloadedSongs: List<Song>,
-    onSongClick: (Song) -> Unit
+    onSongClick: (List<Song>, Int) -> Unit
 ) {
     LazyColumn(
         contentPadding = PaddingValues(
@@ -150,10 +151,10 @@ private fun OfflineTab(
                     modifier = Modifier.padding(vertical = 8.dp)
                 )
             }
-            items(downloadedSongs) { song ->
+            itemsIndexed(downloadedSongs) { index, song ->
                 MusicCard(
                     song = song,
-                    onClick = { onSongClick(song) }
+                    onClick = { onSongClick(downloadedSongs, index) }
                 )
             }
         }
@@ -168,10 +169,10 @@ private fun OfflineTab(
                     modifier = Modifier.padding(vertical = 8.dp)
                 )
             }
-            items(localSongs) { song ->
+            itemsIndexed(localSongs) { index, song ->
                 MusicCard(
                     song = song,
-                    onClick = { onSongClick(song) }
+                    onClick = { onSongClick(localSongs, index) }
                 )
             }
         }
@@ -181,7 +182,7 @@ private fun OfflineTab(
 @Composable
 private fun LikedTab(
     songs: List<Song>,
-    onSongClick: (Song) -> Unit
+    onSongClick: (List<Song>, Int) -> Unit
 ) {
     LazyColumn(
         contentPadding = PaddingValues(
@@ -202,10 +203,10 @@ private fun LikedTab(
             }
         }
         
-        items(songs) { song ->
+        itemsIndexed(songs) { index, song ->
             MusicCard(
                 song = song,
-                onClick = { onSongClick(song) }
+                onClick = { onSongClick(songs, index) }
             )
         }
     }

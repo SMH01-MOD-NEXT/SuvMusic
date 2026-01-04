@@ -68,7 +68,7 @@ import com.suvojeet.suvmusic.ui.viewmodel.PlaylistViewModel
 @Composable
 fun PlaylistScreen(
     onBackClick: () -> Unit,
-    onSongClick: (Song) -> Unit,
+    onSongClick: (List<Song>, Int) -> Unit,
     onPlayAll: (List<Song>) -> Unit = {},
     onShufflePlay: (List<Song>) -> Unit = {},
     viewModel: PlaylistViewModel = hiltViewModel()
@@ -98,67 +98,34 @@ fun PlaylistScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(400.dp)
-                    .blur(50.dp),
-                contentScale = ContentScale.Crop
-            )
-            // Gradient overlay
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(400.dp)
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                Color(0xFF0D0D0D).copy(alpha = 0.5f),
-                                Color(0xFF0D0D0D)
-                            )
-                        )
-                    )
+                    .blur(100.dp),
+                contentScale = ContentScale.Crop,
+                alpha = 0.5f
             )
         }
         
+        // Gradient overlay
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            Color(0xFF0D0D0D).copy(alpha = 0.8f),
+                            Color(0xFF0D0D0D)
+                        )
+                    )
+                )
+        )
+        
+        // Content
         if (uiState.isLoading) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(color = Color.White)
-            }
-        } else if (uiState.error != null) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = uiState.error ?: "Error loading playlist",
-                    color = Color.White
-                )
-            }
+            CircularProgressIndicator(
+                modifier = Modifier.align(Alignment.Center),
+                color = MaterialTheme.colorScheme.primary
+            )
         } else if (playlist != null) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .statusBarsPadding()
-            ) {
-                // Top Bar with back button and actions
-                TopBar(
-                    title = playlist.title,
-                    isScrolled = isScrolled,
-                    onBackClick = onBackClick
-                )
-
-                LazyColumn(
-                    state = listState,
-                    contentPadding = PaddingValues(bottom = 140.dp),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    // Header Section
-                    item {
-                        PlaylistHeader(
-                            playlist = playlist,
-                            onPlayAll = { onPlayAll(playlist.songs) },
-                            onShufflePlay = { onShufflePlay(playlist.songs) }
                         )
                     }
 

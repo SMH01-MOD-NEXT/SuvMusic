@@ -39,7 +39,7 @@ import com.suvojeet.suvmusic.ui.viewmodel.HomeViewModel
  */
 @Composable
 fun HomeScreen(
-    onSongClick: (Song) -> Unit,
+    onSongClick: (List<Song>, Int) -> Unit,
     onPlaylistClick: (PlaylistDisplayItem) -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
@@ -103,6 +103,7 @@ fun HomeScreen(
                 
                 // Quick Picks Section
                 if (uiState.recommendations.isNotEmpty()) {
+                    val quickPicks = uiState.recommendations.take(10)
                     item {
                         HomeSectionHeader(title = "Quick Picks")
                     }
@@ -112,10 +113,10 @@ fun HomeScreen(
                             contentPadding = PaddingValues(horizontal = 20.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            items(uiState.recommendations.take(10)) { song ->
+                            itemsIndexed(quickPicks) { index, song ->
                                 CompactMusicCard(
                                     song = song,
-                                    onClick = { onSongClick(song) }
+                                    onClick = { onSongClick(quickPicks, index) }
                                 )
                             }
                         }
@@ -145,14 +146,15 @@ fun HomeScreen(
                 
                 // Recently Played
                 if (uiState.recommendations.isNotEmpty()) {
+                    val recentlyPlayed = uiState.recommendations.take(5)
                     item {
                         HomeSectionHeader(title = "Recently Played")
                     }
                     
-                    items(uiState.recommendations.take(5)) { song ->
+                    itemsIndexed(recentlyPlayed) { index, song ->
                         MusicCard(
                             song = song,
-                            onClick = { onSongClick(song) },
+                            onClick = { onSongClick(recentlyPlayed, index) },
                             modifier = Modifier.padding(horizontal = 20.dp)
                         )
                     }
