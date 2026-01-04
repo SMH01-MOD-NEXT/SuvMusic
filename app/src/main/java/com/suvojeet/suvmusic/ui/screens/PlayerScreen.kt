@@ -111,6 +111,7 @@ fun PlayerScreen(
     onShuffleToggle: () -> Unit,
     onRepeatToggle: () -> Unit,
     onToggleAutoplay: () -> Unit,
+    onPlayFromQueue: (Int) -> Unit = {},
     playlistViewModel: PlaylistManagementViewModel = hiltViewModel()
 ) {
 
@@ -265,8 +266,19 @@ fun PlayerScreen(
             QueueView(
                 currentSong = song,
                 queue = playerState.queue,
+                isPlaying = playerState.isPlaying,
+                shuffleEnabled = playerState.shuffleEnabled,
+                repeatMode = playerState.repeatMode,
+                isAutoplayEnabled = playerState.isAutoplayEnabled,
+                isFavorite = playerState.isLiked,
                 onBack = { showQueue = false },
-                onSongClick = { /* Play from queue */ },
+                onSongClick = { index -> onPlayFromQueue(index) },
+                onPlayPause = onPlayPause,
+                onToggleShuffle = onShuffleToggle,
+                onToggleRepeat = onRepeatToggle,
+                onToggleAutoplay = onToggleAutoplay,
+                onToggleLike = onToggleLike,
+                onMoreClick = { showActionsSheet = true },
                 dominantColors = dominantColors
             )
         }
@@ -688,8 +700,19 @@ private fun BottomActions(
 private fun QueueView(
     currentSong: Song?,
     queue: List<Song>,
+    isPlaying: Boolean,
+    shuffleEnabled: Boolean,
+    repeatMode: RepeatMode,
+    isAutoplayEnabled: Boolean,
+    isFavorite: Boolean,
     onBack: () -> Unit,
-    onSongClick: (Song) -> Unit,
+    onSongClick: (Int) -> Unit,
+    onPlayPause: () -> Unit,
+    onToggleShuffle: () -> Unit,
+    onToggleRepeat: () -> Unit,
+    onToggleAutoplay: () -> Unit,
+    onToggleLike: () -> Unit,
+    onMoreClick: () -> Unit,
     dominantColors: DominantColors
 ) {
     Column(
@@ -742,15 +765,15 @@ private fun QueueView(
                     )
                 }
                 
-                IconButton(onClick = { /* Favorite */ }) {
+                IconButton(onClick = onToggleLike) {
                     Icon(
-                        imageVector = Icons.Default.StarOutline,
+                        imageVector = if (isFavorite) Icons.Default.Star else Icons.Default.StarOutline,
                         contentDescription = "Favorite",
-                        tint = dominantColors.onBackground
+                        tint = if (isFavorite) dominantColors.accent else dominantColors.onBackground
                     )
                 }
                 
-                IconButton(onClick = { /* More */ }) {
+                IconButton(onClick = onMoreClick) {
                     Icon(
                         imageVector = Icons.Default.MoreVert,
                         contentDescription = "More",
@@ -770,23 +793,26 @@ private fun QueueView(
             PlaybackChip(
                 text = "Shuffle",
                 icon = Icons.Default.Shuffle,
-                isSelected = false,
+                isSelected = shuffleEnabled,
                 dominantColors = dominantColors,
-                onClick = { } 
+                onClick = onToggleShuffle
             )
             PlaybackChip(
                 text = "Repeat",
-                icon = Icons.Default.Repeat,
-                isSelected = false,
+                icon = when (repeatMode) {
+                    RepeatMode.ONE -> Icons.Default.RepeatOne
+                    else -> Icons.Default.Repeat
+                },
+                isSelected = repeatMode != RepeatMode.OFF,
                 dominantColors = dominantColors,
-                onClick = { } 
+                onClick = onToggleRepeat
             )
             PlaybackChip(
                 text = "Autoplay",
                 icon = Icons.Default.PlayArrow,
-                isSelected = true,
+                isSelected = isAutoplayEnabled,
                 dominantColors = dominantColors,
-                onClick = { } 
+                onClick = onToggleAutoplay
             )
         }
         
@@ -800,7 +826,7 @@ private fun QueueView(
             modifier = Modifier.padding(horizontal = 16.dp)
         )
         Text(
-            text = "Autoplaying similar music",
+            text = if (isAutoplayEnabled) "Autoplaying similar music" else "${queue.size} songs in queue",
             style = MaterialTheme.typography.bodySmall,
             color = dominantColors.onBackground.copy(alpha = 0.6f),
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
@@ -809,18 +835,19 @@ private fun QueueView(
         // Queue list
         LazyColumn(
             contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.weight(1f)
         ) {
             itemsIndexed(queue) { index, song ->
                 QueueItem(
                     song = song,
-                    onClick = { onSongClick(song) },
+                    isCurrent = song.id == currentSong?.id,
+                    isPlaying = song.id == currentSong?.id && isPlaying,
+                    onClick = { onSongClick(index) },
                     dominantColors = dominantColors
                 )
             }
         }
-        
-        Spacer(modifier = Modifier.weight(1f))
         
         // Close button
         IconButton(

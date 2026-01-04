@@ -131,7 +131,12 @@ fun NavGraph(
                 onToggleLike = onLikeCurrentSong,
                 onShuffleToggle = onShuffleToggle,
                 onRepeatToggle = onRepeatToggle,
-                onToggleAutoplay = onToggleAutoplay
+                onToggleAutoplay = onToggleAutoplay,
+                onPlayFromQueue = { index ->
+                    if (playerState.queue.isNotEmpty() && index in playerState.queue.indices) {
+                        onPlaySong(playerState.queue, index)
+                    }
+                }
             )
         }
         
