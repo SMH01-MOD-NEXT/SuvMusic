@@ -330,6 +330,10 @@ class MusicPlayer @Inject constructor(
     
     fun getPlayer(): Player? = mediaController
     
+    fun toggleAutoplay() {
+        _playerState.update { it.copy(isAutoplayEnabled = !it.isAutoplayEnabled) }
+    }
+    
     fun release() {
         positionUpdateJob?.cancel()
         controllerFuture?.let { MediaController.releaseFuture(it) }
