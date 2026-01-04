@@ -688,15 +688,59 @@ class YouTubeRepository @Inject constructor(
 
     private fun parsePlaylistFromInternalJson(json: String, playlistId: String): Playlist {
         val root = JSONObject(json)
+        
+        // Try multiple header renderer types
         val header = root.optJSONObject("header")?.optJSONObject("musicDetailHeaderRenderer")
             ?: root.optJSONObject("header")?.optJSONObject("musicResponsiveHeaderRenderer")
+            ?: root.optJSONObject("header")?.optJSONObject("musicEditablePlaylistDetailHeaderRenderer")
+                ?.optJSONObject("header")?.optJSONObject("musicDetailHeaderRenderer")
+            ?: root.optJSONObject("header")?.optJSONObject("musicEditablePlaylistDetailHeaderRenderer")
+                ?.optJSONObject("header")?.optJSONObject("musicResponsiveHeaderRenderer")
         
-        val title = getRunText(header?.optJSONObject("title")) ?: "Unknown Playlist"
-        val subtitle = getRunText(header?.optJSONObject("subtitle")) // Created by ... • ... songs
-        val author = subtitle?.split("•")?.firstOrNull()?.removePrefix("Created by ")?.trim() ?: "Unknown"
-        val thumbnailUrl = extractThumbnail(header?.optJSONObject("thumbnail"))
+        // Extract title from header
+        val title = getRunText(header?.optJSONObject("title")) 
+            ?: header?.optJSONObject("title")?.optString("simpleText")
+            ?: "Unknown Playlist"
+        
+        // Extract author/subtitle
+        val subtitle = getRunText(header?.optJSONObject("subtitle"))
+            ?: getRunText(header?.optJSONObject("straplineTextOne"))
+        val author = subtitle?.split("•")?.firstOrNull()
+            ?.replace("Playlist", "")
+            ?.replace("Auto playlist", "YouTube Music")
+            ?.trim()
+            ?: "Unknown"
+        
+        // Extract thumbnail from multiple possible locations
+        var thumbnailUrl: String? = null
+        
+        // Try direct thumbnail in header
+        thumbnailUrl = extractHeaderThumbnail(header)
+        
+        // Try from thumbnail renderer
+        if (thumbnailUrl == null) {
+            thumbnailUrl = header?.optJSONObject("thumbnail")
+                ?.optJSONObject("croppedSquareThumbnailRenderer")
+                ?.optJSONObject("thumbnail")
+                ?.optJSONArray("thumbnails")
+                ?.let { arr -> arr.optJSONObject(arr.length() - 1)?.optString("url") }
+        }
+        
+        // Try from foreground thumbnail
+        if (thumbnailUrl == null) {
+            thumbnailUrl = header?.optJSONObject("foregroundThumbnail")
+                ?.optJSONObject("musicThumbnailRenderer")
+                ?.optJSONObject("thumbnail")
+                ?.optJSONArray("thumbnails")
+                ?.let { arr -> arr.optJSONObject(arr.length() - 1)?.optString("url") }
+        }
         
         val songs = parseSongsFromInternalJson(json)
+        
+        // Fallback to first song's thumbnail if playlist thumbnail is missing
+        if (thumbnailUrl == null && songs.isNotEmpty()) {
+            thumbnailUrl = songs.firstOrNull()?.thumbnailUrl
+        }
         
         return Playlist(
             id = playlistId,
@@ -705,6 +749,30 @@ class YouTubeRepository @Inject constructor(
             thumbnailUrl = thumbnailUrl,
             songs = songs
         )
+    }
+    
+    private fun extractHeaderThumbnail(header: JSONObject?): String? {
+        if (header == null) return null
+        
+        // Standard musicThumbnailRenderer path
+        val thumbnails = header.optJSONObject("thumbnail")
+            ?.optJSONObject("musicThumbnailRenderer")
+            ?.optJSONObject("thumbnail")
+            ?.optJSONArray("thumbnails")
+        
+        if (thumbnails != null && thumbnails.length() > 0) {
+            return thumbnails.optJSONObject(thumbnails.length() - 1)?.optString("url")
+        }
+        
+        // Alternative path for some playlists
+        val altThumbnails = header.optJSONObject("thumbnail")
+            ?.optJSONArray("thumbnails")
+        
+        if (altThumbnails != null && altThumbnails.length() > 0) {
+            return altThumbnails.optJSONObject(altThumbnails.length() - 1)?.optString("url")
+        }
+        
+        return null
     }
 
     private fun parseSongsFromInternalJson(json: String): List<Song> {

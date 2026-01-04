@@ -128,12 +128,16 @@ fun PlaylistScreen(
         } else if (playlist != null) {
             LazyColumn(
                 state = listState,
-                contentPadding = PaddingValues(bottom = 100.dp), // Space for player bar
+                contentPadding = PaddingValues(top = 60.dp, bottom = 100.dp), // Top padding for TopBar
                 modifier = Modifier.fillMaxSize()
             ) {
-                // Header (Transparent space for the fixed header)
+                // Playlist Header (scrolls with content)
                 item {
-                    Spacer(modifier = Modifier.height(300.dp))
+                    PlaylistHeader(
+                        playlist = playlist,
+                        onPlayAll = { onPlayAll(playlist.songs) },
+                        onShufflePlay = { onShufflePlay(playlist.songs) }
+                    )
                 }
                 
                 // Song List
@@ -145,15 +149,7 @@ fun PlaylistScreen(
                 }
             }
             
-            // Fixed Header
-            // Fixed Header (Content)
-            PlaylistHeader(
-                playlist = playlist,
-                onPlayAll = { onPlayAll(playlist.songs) },
-                onShufflePlay = { onShufflePlay(playlist.songs) }
-            )
-            
-            // Top Bar
+            // Top Bar (Fixed at top)
             TopBar(
                 title = playlist.title,
                 isScrolled = isScrolled,
@@ -240,23 +236,9 @@ private fun PlaylistHeader(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp),
+            .padding(horizontal = 20.dp, vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Large Title at top (YouTube Music style)
-        Text(
-            text = playlist.title,
-            style = MaterialTheme.typography.displaySmall.copy(
-                fontWeight = FontWeight.Bold,
-                fontSize = 32.sp
-            ),
-            color = Color.White,
-            textAlign = TextAlign.Start,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 24.dp)
-        )
-        
         // Centered Artwork
         Box(
             modifier = Modifier
