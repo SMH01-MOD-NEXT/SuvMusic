@@ -3,7 +3,9 @@ package com.suvojeet.suvmusic.data
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.suvojeet.suvmusic.data.model.AudioQuality
@@ -28,6 +30,9 @@ class SessionManager @Inject constructor(
         private val COOKIES_KEY = stringPreferencesKey("cookies")
         private val USER_AVATAR_KEY = stringPreferencesKey("user_avatar")
         private val AUDIO_QUALITY_KEY = stringPreferencesKey("audio_quality")
+        private val GAPLESS_PLAYBACK_KEY = booleanPreferencesKey("gapless_playback")
+        private val AUTOMIX_KEY = booleanPreferencesKey("automix")
+        private val CROSSFADE_DURATION_KEY = intPreferencesKey("crossfade_duration")
     }
     
     // --- Cookies ---
@@ -82,4 +87,37 @@ class SessionManager @Inject constructor(
             preferences[AUDIO_QUALITY_KEY] = quality.name
         }
     }
+    
+    // --- Playback Settings ---
+    
+    fun isGaplessPlaybackEnabled(): Boolean = runBlocking {
+        context.dataStore.data.first()[GAPLESS_PLAYBACK_KEY] ?: true
+    }
+    
+    suspend fun setGaplessPlayback(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[GAPLESS_PLAYBACK_KEY] = enabled
+        }
+    }
+    
+    fun isAutomixEnabled(): Boolean = runBlocking {
+        context.dataStore.data.first()[AUTOMIX_KEY] ?: true
+    }
+    
+    suspend fun setAutomix(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[AUTOMIX_KEY] = enabled
+        }
+    }
+    
+    fun getCrossfadeDuration(): Int = runBlocking {
+        context.dataStore.data.first()[CROSSFADE_DURATION_KEY] ?: 0
+    }
+    
+    suspend fun setCrossfadeDuration(seconds: Int) {
+        context.dataStore.edit { preferences ->
+            preferences[CROSSFADE_DURATION_KEY] = seconds
+        }
+    }
 }
+

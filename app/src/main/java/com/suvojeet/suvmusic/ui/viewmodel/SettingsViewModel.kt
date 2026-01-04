@@ -16,7 +16,10 @@ data class SettingsUiState(
     val isLoggedIn: Boolean = false,
     val userAvatarUrl: String? = null,
     val audioQuality: AudioQuality = AudioQuality.HIGH,
-    val dynamicColorEnabled: Boolean = true
+    val dynamicColorEnabled: Boolean = true,
+    val gaplessPlaybackEnabled: Boolean = true,
+    val automixEnabled: Boolean = true,
+    val crossfadeDuration: Int = 0
 )
 
 @HiltViewModel
@@ -42,7 +45,10 @@ class SettingsViewModel @Inject constructor(
             it.copy(
                 isLoggedIn = sessionManager.isLoggedIn(),
                 userAvatarUrl = sessionManager.getUserAvatar(),
-                audioQuality = sessionManager.getAudioQuality()
+                audioQuality = sessionManager.getAudioQuality(),
+                gaplessPlaybackEnabled = sessionManager.isGaplessPlaybackEnabled(),
+                automixEnabled = sessionManager.isAutomixEnabled(),
+                crossfadeDuration = sessionManager.getCrossfadeDuration()
             )
         }
     }
@@ -58,6 +64,27 @@ class SettingsViewModel @Inject constructor(
         _uiState.update { it.copy(dynamicColorEnabled = enabled) }
     }
     
+    fun setGaplessPlayback(enabled: Boolean) {
+        viewModelScope.launch {
+            sessionManager.setGaplessPlayback(enabled)
+            _uiState.update { it.copy(gaplessPlaybackEnabled = enabled) }
+        }
+    }
+    
+    fun setAutomix(enabled: Boolean) {
+        viewModelScope.launch {
+            sessionManager.setAutomix(enabled)
+            _uiState.update { it.copy(automixEnabled = enabled) }
+        }
+    }
+    
+    fun setCrossfadeDuration(seconds: Int) {
+        viewModelScope.launch {
+            sessionManager.setCrossfadeDuration(seconds)
+            _uiState.update { it.copy(crossfadeDuration = seconds) }
+        }
+    }
+    
     fun logout() {
         viewModelScope.launch {
             sessionManager.clearCookies()
@@ -70,3 +97,4 @@ class SettingsViewModel @Inject constructor(
         }
     }
 }
+

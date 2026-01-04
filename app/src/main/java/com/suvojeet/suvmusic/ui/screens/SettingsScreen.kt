@@ -59,6 +59,9 @@ import com.suvojeet.suvmusic.R
 import com.suvojeet.suvmusic.data.model.AudioQuality
 import com.suvojeet.suvmusic.ui.viewmodel.SettingsViewModel
 import kotlinx.coroutines.launch
+import androidx.compose.material3.Slider
+import androidx.compose.material.icons.filled.GraphicEq
+import kotlin.math.roundToInt
 
 /**
  * Settings screen with audio quality, theme, and account settings.
@@ -108,28 +111,10 @@ fun SettingsScreen(
                     ) 
                 },
                 supportingContent = { 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        // YT Music logo (using icon as fallback)
-                        Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = Color(0xFFFF0000),
-                            modifier = Modifier.size(20.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Person,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier
-                                    .padding(2.dp)
-                                    .size(16.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "YouTube Music connected",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    Text(
+                        text = "YouTube Music connected",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 },
                 leadingContent = {
                     if (uiState.userAvatarUrl != null) {
@@ -206,6 +191,98 @@ fun SettingsScreen(
             subtitle = uiState.audioQuality.label,
             onClick = { showQualitySheet = true }
         )
+        
+        HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+        
+        // Track Transitions Section
+        SectionTitle("Track transitions")
+        
+        // Gapless playback
+        ListItem(
+            headlineContent = { Text("Gapless playback") },
+            supportingContent = { 
+                Text("Removes any gaps or pauses that may occur in between tracks.") 
+            },
+            leadingContent = {
+                Icon(
+                    imageVector = Icons.Default.GraphicEq,
+                    contentDescription = null
+                )
+            },
+            trailingContent = {
+                Switch(
+                    checked = uiState.gaplessPlaybackEnabled,
+                    onCheckedChange = { viewModel.setGaplessPlayback(it) }
+                )
+            },
+            colors = ListItemDefaults.colors(
+                containerColor = Color.Transparent
+            )
+        )
+        
+        // Automix
+        ListItem(
+            headlineContent = { Text("Automix") },
+            supportingContent = { 
+                Text("Allows seamless transitions between songs on certain playlists.") 
+            },
+            trailingContent = {
+                Switch(
+                    checked = uiState.automixEnabled,
+                    onCheckedChange = { viewModel.setAutomix(it) }
+                )
+            },
+            colors = ListItemDefaults.colors(
+                containerColor = Color.Transparent
+            )
+        )
+        
+        // Crossfade slider
+        Column(
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+        ) {
+            Text(
+                text = "Crossfade",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = "Adjust the length of fading and overlap in between tracks.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "0 s",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Slider(
+                    value = uiState.crossfadeDuration.toFloat(),
+                    onValueChange = { viewModel.setCrossfadeDuration(it.roundToInt()) },
+                    valueRange = 0f..12f,
+                    steps = 11,
+                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
+                )
+                Text(
+                    text = "12 s",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (uiState.crossfadeDuration > 0) {
+                Text(
+                    text = "Current: ${uiState.crossfadeDuration}s",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+        }
         
         HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
         
