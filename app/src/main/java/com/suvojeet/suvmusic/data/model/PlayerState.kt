@@ -15,7 +15,9 @@ data class PlayerState(
     val repeatMode: RepeatMode = RepeatMode.OFF,
     val audioQuality: AudioQuality = AudioQuality.HIGH,
     val isLoading: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val isLiked: Boolean = false,
+    val downloadState: DownloadState = DownloadState.NOT_DOWNLOADED
 ) {
     val progress: Float
         get() = if (duration > 0) currentPosition.toFloat() / duration else 0f
@@ -25,6 +27,13 @@ data class PlayerState(
     
     val hasPrevious: Boolean
         get() = currentIndex > 0 || repeatMode == RepeatMode.ALL
+}
+
+enum class DownloadState {
+    NOT_DOWNLOADED,
+    DOWNLOADING,
+    DOWNLOADED,
+    FAILED
 }
 
 /**

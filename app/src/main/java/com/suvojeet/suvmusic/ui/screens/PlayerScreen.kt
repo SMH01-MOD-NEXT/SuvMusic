@@ -32,6 +32,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Cast
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Downloading
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -45,6 +49,7 @@ import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarOutline
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -71,6 +76,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.suvojeet.suvmusic.data.model.DownloadState
 import com.suvojeet.suvmusic.data.model.PlayerState
 import com.suvojeet.suvmusic.data.model.RepeatMode
 import com.suvojeet.suvmusic.data.model.Song
@@ -103,7 +109,6 @@ fun PlayerScreen(
     // UI States
     var showQueue by remember { mutableStateOf(false) }
     var showActionsSheet by remember { mutableStateOf(false) }
-    var isFavorite by remember { mutableStateOf(false) }
     
     // High-res thumbnail
     val highResThumbnail = getHighResThumbnail(song?.thumbnailUrl)
@@ -161,8 +166,10 @@ fun PlayerScreen(
                 // Song Info with actions
                 SongInfoSection(
                     song = song,
-                    isFavorite = isFavorite,
+                    isFavorite = playerState.isLiked,
+                    downloadState = playerState.downloadState,
                     onFavoriteClick = onToggleLike,
+                    onDownloadClick = onDownload,
                     onMoreClick = { showActionsSheet = true },
                     dominantColors = dominantColors
                 )
@@ -330,7 +337,9 @@ private fun AlbumArtwork(
 private fun SongInfoSection(
     song: Song?,
     isFavorite: Boolean,
+    downloadState: DownloadState,
     onFavoriteClick: () -> Unit,
+    onDownloadClick: () -> Unit,
     onMoreClick: () -> Unit,
     dominantColors: DominantColors
 ) {
@@ -360,6 +369,43 @@ private fun SongInfoSection(
             )
         }
         
+        // Download Button
+        IconButton(onClick = onDownloadClick) {
+             when(downloadState) {
+                 DownloadState.DOWNLOADING -> {
+                     CircularProgressIndicator(
+                         modifier = Modifier.size(24.dp),
+                         color = dominantColors.accent,
+                         strokeWidth = 2.dp
+                     )
+                 }
+                 DownloadState.DOWNLOADED -> {
+                     Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = "Downloaded",
+                        tint = dominantColors.accent,
+                        modifier = Modifier.size(28.dp)
+                    )
+                 }
+                 DownloadState.FAILED -> {
+                     Icon(
+                        imageVector = Icons.Default.Error,
+                        contentDescription = "Retry Download",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(28.dp)
+                    )
+                 }
+                 else -> {
+                     Icon(
+                        imageVector = Icons.Default.Download,
+                        contentDescription = "Download",
+                        tint = dominantColors.onBackground.copy(alpha = 0.7f),
+                        modifier = Modifier.size(28.dp)
+                    )
+                 }
+             }
+        }
+
         IconButton(onClick = onFavoriteClick) {
             Icon(
                 imageVector = if (isFavorite) Icons.Default.Star else Icons.Default.StarOutline,

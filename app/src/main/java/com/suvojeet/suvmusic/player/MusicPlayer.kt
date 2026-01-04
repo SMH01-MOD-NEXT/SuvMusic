@@ -10,6 +10,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import com.suvojeet.suvmusic.data.model.DownloadState
 import com.suvojeet.suvmusic.data.model.PlayerState
 import com.suvojeet.suvmusic.data.model.RepeatMode
 import com.suvojeet.suvmusic.data.model.Song
@@ -86,7 +87,10 @@ class MusicPlayer @Inject constructor(
                         currentSong = song,
                         currentIndex = index,
                         currentPosition = 0L,
-                        duration = exoPlayer.duration.coerceAtLeast(0L)
+                        duration = exoPlayer.duration.coerceAtLeast(0L),
+                        // Reset metadata states on song change (will be updated by VM)
+                        isLiked = false,
+                        downloadState = DownloadState.NOT_DOWNLOADED
                     )
                 }
             }
@@ -147,7 +151,7 @@ class MusicPlayer @Inject constructor(
     
     private suspend fun createMediaItem(song: Song, resolveStream: Boolean = true): MediaItem {
         val uri = when (song.source) {
-            SongSource.LOCAL -> song.localUri.toString()
+            SongSource.LOCAL, SongSource.DOWNLOADED -> song.localUri.toString()
             else -> {
                 if (resolveStream) {
                     youTubeRepository.getStreamUrl(song.id) ?: "https://youtube.com/watch?v=${song.id}"
@@ -214,6 +218,14 @@ class MusicPlayer @Inject constructor(
         val newShuffleState = !exoPlayer.shuffleModeEnabled
         exoPlayer.shuffleModeEnabled = newShuffleState
         _playerState.update { it.copy(shuffleEnabled = newShuffleState) }
+    }
+    
+    fun updateLikeStatus(isLiked: Boolean) {
+        _playerState.update { it.copy(isLiked = isLiked) }
+    }
+    
+    fun updateDownloadState(state: DownloadState) {
+        _playerState.update { it.copy(downloadState = state) }
     }
     
     fun getPlayer(): ExoPlayer = exoPlayer
