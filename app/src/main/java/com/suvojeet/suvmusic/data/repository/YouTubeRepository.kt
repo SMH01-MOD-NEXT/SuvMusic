@@ -395,6 +395,172 @@ class YouTubeRepository @Inject constructor(
     }
 
     // ============================================================================================
+    // Playlist Management
+    // ============================================================================================
+
+    /**
+     * Create a new playlist on YouTube Music.
+     * @param title The title of the playlist
+     * @param description Optional description for the playlist
+     * @param privacyStatus Privacy status - PRIVATE, UNLISTED, or PUBLIC
+     * @return The playlist ID if successful, null otherwise
+     */
+    suspend fun createPlaylist(
+        title: String,
+        description: String = "",
+        privacyStatus: String = "PRIVATE"
+    ): String? = withContext(Dispatchers.IO) {
+        try {
+            if (!sessionManager.isLoggedIn()) return@withContext null
+            
+            val cookies = sessionManager.getCookies() ?: return@withContext null
+            val authHeader = YouTubeAuthUtils.getAuthorizationHeader(cookies) ?: ""
+            
+            val jsonBody = JSONObject().apply {
+                put("context", JSONObject().apply {
+                    put("client", JSONObject().apply {
+                        put("clientName", "WEB_REMIX")
+                        put("clientVersion", "1.20230102.01.00")
+                        put("hl", "en")
+                        put("gl", "US")
+                    })
+                })
+                put("title", title)
+                put("description", description)
+                put("privacyStatus", privacyStatus)
+            }
+            
+            val request = okhttp3.Request.Builder()
+                .url("https://music.youtube.com/youtubei/v1/playlist/create")
+                .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
+                .addHeader("Cookie", cookies)
+                .addHeader("Authorization", authHeader)
+                .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                .addHeader("Origin", "https://music.youtube.com")
+                .addHeader("X-Goog-AuthUser", "0")
+                .build()
+            
+            val response = okHttpClient.newCall(request).execute()
+            val responseBody = response.body?.string() ?: return@withContext null
+            
+            // Parse the response to get playlist ID
+            val jsonResponse = JSONObject(responseBody)
+            jsonResponse.optString("playlistId").takeIf { it.isNotEmpty() }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    /**
+     * Add a song to an existing YouTube Music playlist.
+     * @param playlistId The ID of the playlist
+     * @param videoId The video ID to add
+     * @return True if successful
+     */
+    suspend fun addSongToPlaylist(playlistId: String, videoId: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            if (!sessionManager.isLoggedIn()) return@withContext false
+            
+            val cookies = sessionManager.getCookies() ?: return@withContext false
+            val authHeader = YouTubeAuthUtils.getAuthorizationHeader(cookies) ?: ""
+            
+            val jsonBody = JSONObject().apply {
+                put("context", JSONObject().apply {
+                    put("client", JSONObject().apply {
+                        put("clientName", "WEB_REMIX")
+                        put("clientVersion", "1.20230102.01.00")
+                        put("hl", "en")
+                        put("gl", "US")
+                    })
+                })
+                put("playlistId", playlistId)
+                put("actions", JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("action", "ACTION_ADD_VIDEO")
+                        put("addedVideoId", videoId)
+                    })
+                })
+            }
+            
+            val request = okhttp3.Request.Builder()
+                .url("https://music.youtube.com/youtubei/v1/browse/edit_playlist")
+                .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
+                .addHeader("Cookie", cookies)
+                .addHeader("Authorization", authHeader)
+                .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                .addHeader("Origin", "https://music.youtube.com")
+                .addHeader("X-Goog-AuthUser", "0")
+                .build()
+            
+            val response = okHttpClient.newCall(request).execute()
+            response.isSuccessful
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    /**
+     * Get user's playlists for adding songs to.
+     * Returns only user-created playlists, not auto-generated ones.
+     */
+    suspend fun getUserEditablePlaylists(): List<PlaylistDisplayItem> = withContext(Dispatchers.IO) {
+        try {
+            if (!sessionManager.isLoggedIn()) return@withContext emptyList()
+            
+            val response = fetchInternalApi("FEmusic_liked_playlists")
+            if (response.isEmpty()) return@withContext emptyList()
+            
+            val json = JSONObject(response)
+            val playlists = mutableListOf<PlaylistDisplayItem>()
+            
+            // Parse the response to get user playlists
+            val contents = json.optJSONObject("contents")
+                ?.optJSONObject("singleColumnBrowseResultsRenderer")
+                ?.optJSONArray("tabs")
+                ?.optJSONObject(0)
+                ?.optJSONObject("tabRenderer")
+                ?.optJSONObject("content")
+                ?.optJSONObject("sectionListRenderer")
+                ?.optJSONArray("contents")
+            
+            contents?.let { contentArray ->
+                for (i in 0 until contentArray.length()) {
+                    val section = contentArray.optJSONObject(i)
+                    val gridRenderer = section?.optJSONObject("gridRenderer")
+                        ?: section?.optJSONObject("musicShelfRenderer")
+                    
+                    val items = gridRenderer?.optJSONArray("items")
+                        ?: gridRenderer?.optJSONArray("contents")
+                    
+                    items?.let { itemArray ->
+                        for (j in 0 until itemArray.length()) {
+                            val item = itemArray.optJSONObject(j)
+                            val musicItem = item?.optJSONObject("musicTwoRowItemRenderer")
+                                ?: item?.optJSONObject("musicResponsiveListItemRenderer")
+                            
+                            musicItem?.let { parsePlaylistItem(it) }?.let { playlist ->
+                                // Filter out auto-generated playlists
+                                if (!playlist.id.startsWith("RDAMPL") && 
+                                    !playlist.id.startsWith("LM") &&
+                                    playlist.id.isNotEmpty()) {
+                                    playlists.add(playlist)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            playlists
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
+    // ============================================================================================
     // Internal API Helpers
     // ============================================================================================
 
