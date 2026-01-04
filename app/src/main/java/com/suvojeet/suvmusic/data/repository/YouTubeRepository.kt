@@ -562,6 +562,37 @@ class YouTubeRepository @Inject constructor(
         }
     }
 
+    private fun parsePlaylistItem(item: JSONObject): PlaylistDisplayItem? {
+        val title = extractTitle(item)
+        val thumbnail = extractThumbnail(item)
+        
+        val navigationEndpoint = item.optJSONObject("navigationEndpoint")
+            ?: item.optJSONObject("serviceEndpoint")
+            
+        val browseId = navigationEndpoint?.optJSONObject("browseEndpoint")?.optString("browseId")
+        
+        if (browseId.isNullOrEmpty()) return null
+
+        // Subtitle often contains "Author • Song count"
+        val subtitle = extractArtist(item) 
+        
+        // Simple heuristic for song count and uploader
+        val parts = subtitle.split("•").map { it.trim() }
+        val songCountStr = parts.find { it.contains("song", ignoreCase = true) }
+        val songCount = songCountStr?.filter { it.isDigit() }?.toIntOrNull() ?: 0
+        
+        val uploader = parts.firstOrNull { !it.contains("song", ignoreCase = true) } ?: "YouTube User"
+
+        return PlaylistDisplayItem(
+            id = browseId,
+            name = title,
+            url = "https://music.youtube.com/playlist?list=$browseId",
+            uploaderName = uploader,
+            thumbnailUrl = thumbnail,
+            songCount = songCount
+        )
+    }
+
     // ============================================================================================
     // Internal API Helpers
     // ============================================================================================
