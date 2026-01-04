@@ -114,247 +114,7 @@ fun PlayerScreen(
     onToggleAutoplay: () -> Unit,
     playlistViewModel: PlaylistManagementViewModel = hiltViewModel()
 ) {
-    val song = playerState.currentSong
-    val context = LocalContext.current
-    val playlistUiState by playlistViewModel.uiState.collectAsState()
-    
-    // Show toast messages from playlist operations
-    LaunchedEffect(playlistUiState.successMessage) {
-        playlistUiState.successMessage?.let {
-            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
-            playlistViewModel.clearMessages()
-        }
-    }
-    
-    LaunchedEffect(playlistUiState.errorMessage) {
-        playlistUiState.errorMessage?.let {
-            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
-            playlistViewModel.clearMessages()
-        }
-    }
 
-    
-    // Dynamic colors from album art
-    val dominantColors = rememberDominantColors(song?.thumbnailUrl)
-    
-    // UI States
-    var showQueue by remember { mutableStateOf(false) }
-    var showActionsSheet by remember { mutableStateOf(false) }
-    var showCreditsSheet by remember { mutableStateOf(false) }
-    
-    // Error handling
-    LaunchedEffect(playerState.error) {
-        playerState.error?.let {
-            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(dominantColors.background)
-    ) {
-        // Main Content
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-        ) {
-            // Top Bar
-            PlayerTopBar(
-                onBack = onBack,
-                onShowQueue = { showQueue = true },
-                onShowMore = { showActionsSheet = true },
-                dominantColors = dominantColors
-            )
-            
-            // Album Art
-            Spacer(modifier = Modifier.height(24.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                // ... (Album Art Content)
-                AlbumArtwork(
-                    song = song,
-                    modifier = Modifier
-                        .fillMaxWidth(0.85f)
-                        .aspectRatio(1f)
-                        .shadow(16.dp, RoundedCornerShape(16.dp))
-                        .clip(RoundedCornerShape(16.dp)),
-                     dominantColors = dominantColors
-                )
-                 
-                // Show loading indicator if buffering
-                if (playerState.isLoading) {
-                     LoadingArtworkOverlay(
-                         modifier = Modifier
-                            .fillMaxWidth(0.85f)
-                            .aspectRatio(1f)
-                            .clip(RoundedCornerShape(16.dp))
-                     )
-                }
-            }
-            Spacer(modifier = Modifier.height(32.dp))
-            
-            // Song Info & Controls
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .navigationBarsPadding()
-            ) {
-                // Title and Artist
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = song?.title ?: "Not Playing",
-                        style = MaterialTheme.typography.headlineMedium, // Making title bigger
-                        fontWeight = FontWeight.Bold,
-                        color = dominantColors.onBackground,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = song?.artist ?: "Select a song to play",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = dominantColors.onBackground.copy(alpha = 0.7f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                
-                Spacer(modifier = Modifier.height(24.dp))
-                
-                // Seekbar
-                WaveformSeekbar(
-                   // ... params ...
-                   duration = playerState.duration,
-                   position = playerState.currentPosition,
-                   onSeek = onSeekTo,
-                   dominantColors = dominantColors
-                )
-                
-                 // Duration labels
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = formatDuration(playerState.currentPosition),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = dominantColors.onBackground.copy(alpha = 0.6f)
-                    )
-                    Text(
-                        text = formatDuration(playerState.duration),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = dominantColors.onBackground.copy(alpha = 0.6f)
-                    )
-                }
-                
-                Spacer(modifier = Modifier.height(24.dp))
-                
-                // Playback Controls
-                PlaybackControls(
-                    isPlaying = playerState.isPlaying,
-                    onPlayPause = onPlayPause,
-                    onNext = onNext,
-                    onPrevious = onPrevious,
-                    onSeekBack = { onSeekTo((playerState.currentPosition - 10000).coerceAtLeast(0)) },
-                    onSeekForward = { onSeekTo((playerState.currentPosition + 10000).coerceAtMost(playerState.duration)) },
-                    shuffleEnabled = playerState.shuffleEnabled,
-                    repeatMode = playerState.repeatMode,
-                    onShuffleToggle = onShuffleToggle,
-                    onRepeatToggle = onRepeatToggle,
-                    onQueueClick = { showQueue = true },
-                    dominantColors = dominantColors
-                )
-                
-                Spacer(modifier = Modifier.height(24.dp))
-            }
-        }
-         
-        // Queue View
-        AnimatedVisibility(
-            visible = showQueue,
-            enter = slideInVertically { it },
-            exit = slideOutVertically { it }
-        ) {
-            QueueView(
-                queue = playerState.queue,
-                currentSong = song,
-                currentIndex = playerState.currentIndex,
-                dominantColors = dominantColors,
-                isPlaying = playerState.isPlaying,
-                isAutoplayEnabled = playerState.isAutoplayEnabled,
-                repeatMode = playerState.repeatMode,
-                shuffleEnabled = playerState.shuffleEnabled,
-                onSongClick = { 
-                     // Play from queue - implemented in list
-                },
-                onTogglePlayPause = onPlayPause,
-                onToggleShuffle = onShuffleToggle,
-                onToggleRepeat = onRepeatToggle,
-                onToggleAutoplay = onToggleAutoplay,
-                onBack = { showQueue = false }
-            )
-        }
-        
-        // Song Actions Bottom Sheet
-        if (song != null) {
-            SongActionsSheet(
-                song = song,
-                isVisible = showActionsSheet,
-                onDismiss = { showActionsSheet = false },
-                onToggleFavorite = onToggleLike,
-                onDownload = onDownload,
-                onViewCredits = { 
-                    showActionsSheet = false
-                    showCreditsSheet = true
-                },
-                onAddToPlaylist = {
-                    showActionsSheet = false
-                    playlistViewModel.showAddToPlaylistSheet(song)
-                }
-            )
-            
-            // Song Credits Sheet
-            SongCreditsSheet(
-                song = song,
-                isVisible = showCreditsSheet,
-                onDismiss = { showCreditsSheet = false }
-            )
-            
-            // Add to Playlist Sheet
-            if (playlistUiState.showAddToPlaylistSheet && playlistUiState.selectedSong != null) {
-                AddToPlaylistSheet(
-                    song = playlistUiState.selectedSong!!,
-                    isVisible = true,
-                    playlists = playlistUiState.userPlaylists,
-                    isLoading = playlistUiState.isLoadingPlaylists,
-                    onDismiss = { playlistViewModel.hideAddToPlaylistSheet() },
-                    onAddToPlaylist = { playlistId ->
-                        playlistViewModel.addSongToPlaylist(playlistId)
-                    },
-                    onCreateNewPlaylist = {
-                        playlistViewModel.showCreatePlaylistDialog()
-                    }
-                )
-            }
-            
-            // Create Playlist Dialog
-            CreatePlaylistDialog(
-                isVisible = playlistUiState.showCreatePlaylistDialog,
-                isCreating = playlistUiState.isCreatingPlaylist,
-                onDismiss = { playlistViewModel.hideCreatePlaylistDialog() },
-                onCreate = { title, description, isPrivate ->
-                    playlistViewModel.createPlaylist(title, description, isPrivate)
-                }
-            )
-        }
-    }
-}
     val song = playerState.currentSong
     val context = LocalContext.current
     val playlistUiState by playlistViewModel.uiState.collectAsState()
@@ -522,7 +282,7 @@ fun PlayerScreen(
                 onTogglePlayPause = onPlayPause,
                 onToggleShuffle = onShuffleToggle,
                 onToggleRepeat = onRepeatToggle,
-                onToggleAutoplay = { playlistViewModel.toggleAutoplay() }, // Delegate to VM
+                onToggleAutoplay = onToggleAutoplay,
                 onBack = { showQueue = false }
             )
         }
@@ -960,7 +720,7 @@ private fun QueueView(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(dominantColors.background)
+            .background(dominantColors.primary)
             .statusBarsPadding()
     ) {
         // Drag handle for sheet feels
@@ -1060,3 +820,137 @@ private fun formatDuration(millis: Long): String {
     val seconds = totalSeconds % 60
     return "%d:%02d".format(minutes, seconds)
 }
+
+@Composable
+private fun QueueHeader(
+    song: Song,
+    dominantColors: DominantColors,
+    isPlaying: Boolean,
+    onTogglePlayPause: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        AlbumArtwork(
+            imageUrl = song.thumbnailUrl,
+            title = song.title,
+            dominantColors = dominantColors,
+            isLoading = false
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = song.title,
+                style = MaterialTheme.typography.titleMedium,
+                color = dominantColors.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = song.artist,
+                style = MaterialTheme.typography.bodyMedium,
+                color = dominantColors.onBackground.copy(alpha = 0.7f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        IconButton(onClick = onTogglePlayPause) {
+            Icon(
+                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                contentDescription = null,
+                tint = dominantColors.primary
+            )
+        }
+    }
+}
+
+@Composable
+private fun QueueControlsRow(
+    dominantColors: DominantColors,
+    shuffleEnabled: Boolean,
+    repeatMode: RepeatMode,
+    isAutoplayEnabled: Boolean,
+    onToggleShuffle: () -> Unit,
+    onToggleRepeat: () -> Unit,
+    onToggleAutoplay: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+         IconButton(onClick = onToggleShuffle) {
+            Icon(
+                imageVector = Icons.Default.Shuffle,
+                contentDescription = "Shuffle",
+                tint = if (shuffleEnabled) dominantColors.accent else dominantColors.onBackground.copy(alpha = 0.5f)
+            )
+        }
+        IconButton(onClick = onToggleRepeat) {
+            Icon(
+                imageVector = when (repeatMode) {
+                    RepeatMode.ONE -> Icons.Default.RepeatOne
+                    else -> Icons.Default.Repeat
+                },
+                contentDescription = "Repeat",
+                tint = if (repeatMode != RepeatMode.OFF) dominantColors.accent else dominantColors.onBackground.copy(alpha = 0.5f)
+            )
+        }
+        IconButton(onClick = onToggleAutoplay) {
+             Icon(
+                 imageVector = Icons.AutoMirrored.Filled.QueueMusic, // Fallback icon
+                 contentDescription = "Autoplay",
+                 tint = if (isAutoplayEnabled) dominantColors.accent else dominantColors.onBackground.copy(alpha = 0.5f)
+             )
+        }
+    }
+}
+
+@Composable
+private fun QueueItem(
+    song: Song,
+    isCurrent: Boolean,
+    isPlaying: Boolean,
+    onClick: () -> Unit,
+    dominantColors: DominantColors
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .background(if (isCurrent) dominantColors.onBackground.copy(alpha = 0.1f) else Color.Transparent)
+            .padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+         AsyncImage(
+            model = song.thumbnailUrl,
+            contentDescription = null,
+            modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)),
+            contentScale = ContentScale.Crop
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+             Text(
+                text = song.title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (isCurrent) dominantColors.accent else dominantColors.onBackground,
+                maxLines = 1
+            )
+            Text(
+                text = song.artist,
+                style = MaterialTheme.typography.bodyMedium,
+                color = dominantColors.onBackground.copy(alpha = 0.7f),
+                maxLines = 1
+            )
+        }
+        if (isPlaying) {
+             Icon(
+                imageVector = Icons.Default.MusicNote,
+                contentDescription = "Playing",
+                tint = dominantColors.accent,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+    }
+}
+
