@@ -80,11 +80,18 @@ import com.suvojeet.suvmusic.data.model.DownloadState
 import com.suvojeet.suvmusic.data.model.PlayerState
 import com.suvojeet.suvmusic.data.model.RepeatMode
 import com.suvojeet.suvmusic.data.model.Song
+import com.suvojeet.suvmusic.ui.components.AddToPlaylistSheet
+import com.suvojeet.suvmusic.ui.components.CreatePlaylistDialog
 import com.suvojeet.suvmusic.ui.components.DominantColors
 import com.suvojeet.suvmusic.ui.components.SongActionsSheet
 import com.suvojeet.suvmusic.ui.components.SongCreditsSheet
 import com.suvojeet.suvmusic.ui.components.WaveformSeeker
 import com.suvojeet.suvmusic.ui.components.rememberDominantColors
+import com.suvojeet.suvmusic.ui.viewmodel.PlaylistManagementViewModel
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.runtime.collectAsState
+import android.widget.Toast
+import androidx.compose.runtime.LaunchedEffect
 
 /**
  * Premium full-screen player with Apple Music-style design.
@@ -101,10 +108,28 @@ fun PlayerScreen(
     onDownload: () -> Unit,
     onToggleLike: () -> Unit,
     onShuffleToggle: () -> Unit,
-    onRepeatToggle: () -> Unit
+    onRepeatToggle: () -> Unit,
+    playlistViewModel: PlaylistManagementViewModel = hiltViewModel()
 ) {
     val song = playerState.currentSong
     val context = LocalContext.current
+    val playlistUiState by playlistViewModel.uiState.collectAsState()
+    
+    // Show toast messages from playlist operations
+    LaunchedEffect(playlistUiState.successMessage) {
+        playlistUiState.successMessage?.let {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            playlistViewModel.clearMessages()
+        }
+    }
+    
+    LaunchedEffect(playlistUiState.errorMessage) {
+        playlistUiState.errorMessage?.let {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            playlistViewModel.clearMessages()
+        }
+    }
+
     
     // Dynamic colors from album art
     val dominantColors = rememberDominantColors(song?.thumbnailUrl)
@@ -250,7 +275,14 @@ fun PlayerScreen(
                 onDismiss = { showActionsSheet = false },
                 onToggleFavorite = onToggleLike,
                 onDownload = onDownload,
-                onViewCredits = { showCreditsSheet = true }
+                onViewCredits = { 
+                    showActionsSheet = false
+                    showCreditsSheet = true
+                },
+                onAddToPlaylist = {
+                    showActionsSheet = false
+                    playlistViewModel.showAddToPlaylistSheet(song)
+                }
             )
             
             // Song Credits Sheet
@@ -258,6 +290,33 @@ fun PlayerScreen(
                 song = song,
                 isVisible = showCreditsSheet,
                 onDismiss = { showCreditsSheet = false }
+            )
+            
+            // Add to Playlist Sheet
+            if (playlistUiState.showAddToPlaylistSheet && playlistUiState.selectedSong != null) {
+                AddToPlaylistSheet(
+                    song = playlistUiState.selectedSong!!,
+                    isVisible = true,
+                    playlists = playlistUiState.userPlaylists,
+                    isLoading = playlistUiState.isLoadingPlaylists,
+                    onDismiss = { playlistViewModel.hideAddToPlaylistSheet() },
+                    onAddToPlaylist = { playlistId ->
+                        playlistViewModel.addSongToPlaylist(playlistId)
+                    },
+                    onCreateNewPlaylist = {
+                        playlistViewModel.showCreatePlaylistDialog()
+                    }
+                )
+            }
+            
+            // Create Playlist Dialog
+            CreatePlaylistDialog(
+                isVisible = playlistUiState.showCreatePlaylistDialog,
+                isCreating = playlistUiState.isCreatingPlaylist,
+                onDismiss = { playlistViewModel.hideCreatePlaylistDialog() },
+                onCreate = { title, description, isPrivate ->
+                    playlistViewModel.createPlaylist(title, description, isPrivate)
+                }
             )
         }
     }
