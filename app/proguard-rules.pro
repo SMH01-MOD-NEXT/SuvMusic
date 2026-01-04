@@ -4,6 +4,17 @@
 -keep class org.schabi.newpipe.extractor.** { *; }
 -dontwarn org.schabi.newpipe.extractor.**
 
+# Mozilla Rhino (used by NewPipe) - ignore missing Java SE classes
+-keep class org.mozilla.javascript.** { *; }
+-dontwarn org.mozilla.javascript.**
+-dontwarn java.beans.**
+-dontwarn javax.script.**
+
+# Ignore missing Java SE classes not available on Android
+-dontwarn java.awt.**
+-dontwarn javax.swing.**
+-dontwarn javax.naming.**
+
 # Keep OkHttp
 -dontwarn okhttp3.**
 -dontwarn okio.**
