@@ -254,6 +254,14 @@ class YouTubeRepository @Inject constructor(
             
             val playlistExtractor = ytService.getPlaylistExtractor(playlistUrl)
             playlistExtractor.fetchPage()
+            
+            // Get playlist metadata with proper method calls
+            val playlistName = try { playlistExtractor.getName() } catch (e: Exception) { null }
+            val uploaderName = try { playlistExtractor.getUploaderName() } catch (e: Exception) { null }
+            val thumbnailUrl = try { 
+                playlistExtractor.thumbnails?.lastOrNull()?.url 
+            } catch (e: Exception) { null }
+            
             val songs = playlistExtractor.initialPage.items
                 .filterIsInstance<StreamInfoItem>()
                 .mapNotNull { item ->
@@ -261,20 +269,21 @@ class YouTubeRepository @Inject constructor(
                         videoId = extractVideoId(item.url),
                         title = item.name ?: "Unknown",
                         artist = item.uploaderName ?: "Unknown Artist",
-                        album = playlistExtractor.name ?: "",
+                        album = playlistName ?: "",
                         duration = item.duration * 1000L,
-                        thumbnailUrl = item.thumbnails?.firstOrNull()?.url
+                        thumbnailUrl = item.thumbnails?.lastOrNull()?.url // Use last (highest quality)
                     )
                 }
             
             Playlist(
                 id = playlistId,
-                title = playlistExtractor.name ?: "Unknown Playlist",
-                author = playlistExtractor.uploaderName ?: "Unknown",
-                thumbnailUrl = songs.firstOrNull()?.thumbnailUrl,
+                title = playlistName ?: songs.firstOrNull()?.album?.takeIf { it.isNotBlank() } ?: "Playlist",
+                author = uploaderName ?: "Unknown",
+                thumbnailUrl = thumbnailUrl ?: songs.firstOrNull()?.thumbnailUrl,
                 songs = songs
             )
         } catch (e: Exception) {
+            e.printStackTrace()
             Playlist(playlistId, "Error loading playlist", "", null, emptyList())
         }
     }
