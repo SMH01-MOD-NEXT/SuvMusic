@@ -121,6 +121,10 @@ class PlayerViewModel @Inject constructor(
         musicPlayer.toggleShuffle()
     }
     
+    fun toggleRepeat() {
+        musicPlayer.toggleRepeat()
+    }
+    
     fun downloadCurrentSong() {
         val song = playerState.value.currentSong ?: return
         if (downloadRepository.isDownloaded(song.id) || downloadRepository.isDownloading(song.id)) return

@@ -252,6 +252,16 @@ class MusicPlayer @Inject constructor(
         }
     }
     
+    fun toggleRepeat() {
+        val currentMode = _playerState.value.repeatMode
+        val nextMode = when (currentMode) {
+            RepeatMode.OFF -> RepeatMode.ALL
+            RepeatMode.ALL -> RepeatMode.ONE
+            RepeatMode.ONE -> RepeatMode.OFF
+        }
+        setRepeatMode(nextMode)
+    }
+    
     fun updateLikeStatus(isLiked: Boolean) {
         _playerState.update { it.copy(isLiked = isLiked) }
     }

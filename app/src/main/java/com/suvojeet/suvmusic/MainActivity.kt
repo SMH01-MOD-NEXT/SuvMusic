@@ -171,7 +171,9 @@ fun SuvMusicApp() {
                 onNext = { playerViewModel.seekToNext() },
                 onPrevious = { playerViewModel.seekToPrevious() },
                 onDownloadCurrentSong = { playerViewModel.downloadCurrentSong() },
-                onLikeCurrentSong = { playerViewModel.likeCurrentSong() }
+                onLikeCurrentSong = { playerViewModel.likeCurrentSong() },
+                onShuffleToggle = { playerViewModel.toggleShuffle() },
+                onRepeatToggle = { playerViewModel.toggleRepeat() }
             )
         }
     }

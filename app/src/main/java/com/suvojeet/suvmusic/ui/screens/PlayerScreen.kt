@@ -99,7 +99,9 @@ fun PlayerScreen(
     onPrevious: () -> Unit,
     onBack: () -> Unit,
     onDownload: () -> Unit,
-    onToggleLike: () -> Unit
+    onToggleLike: () -> Unit,
+    onShuffleToggle: () -> Unit,
+    onRepeatToggle: () -> Unit
 ) {
     val song = playerState.currentSong
     val context = LocalContext.current
@@ -206,8 +208,8 @@ fun PlayerScreen(
                     onPlayPause = onPlayPause,
                     onNext = onNext,
                     onPrevious = onPrevious,
-                    onShuffleToggle = { /* TODO */ },
-                    onRepeatToggle = { /* TODO */ },
+                    onShuffleToggle = onShuffleToggle,
+                    onRepeatToggle = onRepeatToggle,
                     dominantColors = dominantColors
                 )
                 

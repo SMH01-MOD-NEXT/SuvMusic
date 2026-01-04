@@ -37,6 +37,8 @@ fun NavGraph(
     onPrevious: () -> Unit,
     onDownloadCurrentSong: () -> Unit,
     onLikeCurrentSong: () -> Unit,
+    onShuffleToggle: () -> Unit,
+    onRepeatToggle: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     NavHost(
@@ -112,7 +114,9 @@ fun NavGraph(
                 onPrevious = onPrevious,
                 onBack = { navController.popBackStack() },
                 onDownload = onDownloadCurrentSong,
-                onToggleLike = onLikeCurrentSong
+                onToggleLike = onLikeCurrentSong,
+                onShuffleToggle = onShuffleToggle,
+                onRepeatToggle = onRepeatToggle
             )
         }
         
