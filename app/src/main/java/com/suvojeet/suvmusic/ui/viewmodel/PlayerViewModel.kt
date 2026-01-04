@@ -128,7 +128,9 @@ class PlayerViewModel @Inject constructor(
         musicPlayer.updateDownloadState(DownloadState.DOWNLOADING)
         viewModelScope.launch {
             val success = downloadRepository.downloadSong(song)
-            if (!success) {
+            if (success) {
+                musicPlayer.updateDownloadState(DownloadState.DOWNLOADED)
+            } else {
                 musicPlayer.updateDownloadState(DownloadState.FAILED)
             }
         }
