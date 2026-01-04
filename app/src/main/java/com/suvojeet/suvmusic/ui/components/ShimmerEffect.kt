@@ -216,38 +216,53 @@ fun HomeLoadingSkeleton() {
         modifier = Modifier.padding(top = 16.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
-        // Header skeleton
-        Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-            ShimmerBox(width = 180.dp, height = 32.dp)
-            Spacer(modifier = Modifier.height(8.dp))
-            ShimmerBox(width = 220.dp, height = 18.dp)
+        // Header skeleton (greeting + avatar)
+        Row(
+            modifier = Modifier.padding(horizontal = 20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Avatar
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(shimmerBrush())
+            )
+            // Greeting text
+            ShimmerBox(width = 140.dp, height = 28.dp)
         }
         
-        // Featured playlist skeleton
-        FeaturedPlaylistSkeleton(modifier = Modifier.padding(horizontal = 20.dp))
-        
-        // Quick Picks section
-        Column {
-            SectionHeaderSkeleton(modifier = Modifier.padding(horizontal = 20.dp))
-            Spacer(modifier = Modifier.height(12.dp))
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                userScrollEnabled = false
-            ) {
-                items(5) {
-                    CompactMusicCardSkeleton()
+        // Quick Picks grid skeleton (2 columns x 3 rows)
+        Column(
+            modifier = Modifier.padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            repeat(3) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    repeat(2) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(56.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(shimmerBrush())
+                        )
+                    }
                 }
             }
         }
         
-        // Playlists section
+        // Mixed for You section
         Column {
             SectionHeaderSkeleton(modifier = Modifier.padding(horizontal = 20.dp))
             Spacer(modifier = Modifier.height(12.dp))
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
                 userScrollEnabled = false
             ) {
                 items(4) {
@@ -256,12 +271,18 @@ fun HomeLoadingSkeleton() {
             }
         }
         
-        // Recently played section
-        Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-            SectionHeaderSkeleton()
+        // Listen Again section
+        Column {
+            SectionHeaderSkeleton(modifier = Modifier.padding(horizontal = 20.dp))
             Spacer(modifier = Modifier.height(12.dp))
-            repeat(3) {
-                MusicCardSkeleton()
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                userScrollEnabled = false
+            ) {
+                items(5) {
+                    CompactMusicCardSkeleton()
+                }
             }
         }
     }
