@@ -160,6 +160,14 @@ class PlayerViewModel @Inject constructor(
         }
     }
     
+    fun toggleAutoplay() {
+        musicPlayer.toggleAutoplay()
+    }
+    
+    fun onReorderQueue(fromIndex: Int, toIndex: Int) {
+        musicPlayer.moveQueueItem(fromIndex, toIndex)
+    }
+
     override fun onCleared() {
         super.onCleared()
         // Don't release player here - it's shared

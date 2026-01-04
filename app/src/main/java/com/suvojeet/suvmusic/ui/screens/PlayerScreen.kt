@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Downloading
 import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -261,11 +262,26 @@ fun PlayerScreen(
             exit = slideOutVertically { it }
         ) {
             QueueView(
-                currentSong = song,
                 queue = playerState.queue,
-                onBack = { showQueue = false },
-                onSongClick = { /* Play from queue */ },
-                dominantColors = dominantColors
+                currentSong = song,
+                currentIndex = playerState.currentIndex,
+                dominantColors = dominantColors,
+                isPlaying = playerState.isPlaying,
+                isAutoplayEnabled = playerState.isAutoplayEnabled,
+                repeatMode = playerState.repeatMode,
+                shuffleEnabled = playerState.shuffleEnabled,
+                onSongClick = { 
+                     // Play from queue
+                     val index = playerState.queue.indexOfFirst { it.id == it.id } // Ideally use ID check
+                     if (index != -1) {
+                         // Logic handled by onSongClick in list
+                     }
+                },
+                onTogglePlayPause = onPlayPause,
+                onToggleShuffle = onShuffleToggle,
+                onToggleRepeat = onRepeatToggle,
+                onToggleAutoplay = { playlistViewModel.toggleAutoplay() }, // Delegate to VM
+                onBack = { showQueue = false }
             )
         }
         
@@ -684,121 +700,73 @@ private fun BottomActions(
 
 @Composable
 private fun QueueView(
-    currentSong: Song?,
     queue: List<Song>,
-    onBack: () -> Unit,
+    currentSong: Song?,
+    currentIndex: Int,
+    dominantColors: DominantColors,
+    isPlaying: Boolean,
+    isAutoplayEnabled: Boolean,
+    repeatMode: RepeatMode,
+    shuffleEnabled: Boolean,
     onSongClick: (Song) -> Unit,
-    dominantColors: DominantColors
+    onTogglePlayPause: () -> Unit,
+    onToggleShuffle: () -> Unit,
+    onToggleRepeat: () -> Unit,
+    onToggleAutoplay: () -> Unit,
+    onBack: () -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        dominantColors.secondary,
-                        dominantColors.primary,
-                        Color.Black
-                    )
-                )
-            )
+            .background(dominantColors.background)
             .statusBarsPadding()
-            .navigationBarsPadding()
     ) {
-        // Current song header
-        if (currentSong != null) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                AsyncImage(
-                    model = currentSong.thumbnailUrl,
-                    contentDescription = currentSong.title,
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(RoundedCornerShape(8.dp)),
-                    contentScale = ContentScale.Crop
-                )
-                
-                Spacer(modifier = Modifier.width(12.dp))
-                
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = currentSong.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = dominantColors.onBackground,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = currentSong.artist,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = dominantColors.onBackground.copy(alpha = 0.7f),
-                        maxLines = 1
-                    )
-                }
-                
-                IconButton(onClick = { /* Favorite */ }) {
-                    Icon(
-                        imageVector = Icons.Default.StarOutline,
-                        contentDescription = "Favorite",
-                        tint = dominantColors.onBackground
-                    )
-                }
-                
-                IconButton(onClick = { /* More */ }) {
-                    Icon(
-                        imageVector = Icons.Default.MoreVert,
-                        contentDescription = "More",
-                        tint = dominantColors.onBackground
-                    )
-                }
-            }
-        }
-        
-        // Playback mode chips
-        Row(
+        // Drag handle for sheet feels
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(top = 12.dp, bottom = 24.dp),
+            contentAlignment = Alignment.Center
         ) {
-            PlaybackChip(
-                text = "Shuffle",
-                icon = Icons.Default.Shuffle,
-                isSelected = false,
-                dominantColors = dominantColors,
-                onClick = { } 
-            )
-            PlaybackChip(
-                text = "Repeat",
-                icon = Icons.Default.Repeat,
-                isSelected = false,
-                dominantColors = dominantColors,
-                onClick = { } 
-            )
-            PlaybackChip(
-                text = "Autoplay",
-                icon = Icons.Default.PlayArrow,
-                isSelected = true,
-                dominantColors = dominantColors,
-                onClick = { } 
+            Box(
+                modifier = Modifier
+                    .width(40.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(dominantColors.onBackground.copy(alpha = 0.2f))
             )
         }
-        
+
+        // Header: Current Song Small Info
+        if (currentSong != null) {
+            QueueHeader(currentSong, dominantColors, isPlaying, onTogglePlayPause)
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Controls: Shuffle, Repeat, Autoplay
+        QueueControlsRow(
+            dominantColors = dominantColors,
+            shuffleEnabled = shuffleEnabled,
+            repeatMode = repeatMode,
+            isAutoplayEnabled = isAutoplayEnabled,
+            onToggleShuffle = onToggleShuffle,
+            onToggleRepeat = onToggleRepeat,
+            onToggleAutoplay = onToggleAutoplay
+        )
+
         Spacer(modifier = Modifier.height(16.dp))
-        
-        // Queue header
+
         Text(
             text = "Continue Playing",
             style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
             color = dominantColors.onBackground,
             modifier = Modifier.padding(horizontal = 16.dp)
         )
+        
         Text(
-            text = "Autoplaying similar music",
+            text = if (isAutoplayEnabled) "Autoplaying similar music" else "Autoplay is off",
             style = MaterialTheme.typography.bodySmall,
             color = dominantColors.onBackground.copy(alpha = 0.6f),
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
@@ -807,32 +775,222 @@ private fun QueueView(
         // Queue list
         LazyColumn(
             contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.weight(1f)
         ) {
             itemsIndexed(queue) { index, song ->
+                // Highlight current song
+                val isCurrent = index == currentIndex
                 QueueItem(
                     song = song,
+                    isCurrent = isCurrent,
+                    isPlaying = isPlaying && isCurrent,
                     onClick = { onSongClick(song) },
                     dominantColors = dominantColors
                 )
             }
         }
-        
-        Spacer(modifier = Modifier.weight(1f))
-        
-        // Close button
-        IconButton(
-            onClick = onBack,
+    }
+}
+
+@Composable
+private fun QueueHeader(
+    currentSong: Song,
+    dominantColors: DominantColors,
+    isPlaying: Boolean,
+    onTogglePlayPause: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        AsyncImage(
+            model = currentSong.thumbnailUrl,
+            contentDescription = currentSong.title,
             modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .padding(bottom = 16.dp)
+                .size(56.dp)
+                .clip(RoundedCornerShape(8.dp)),
+            contentScale = ContentScale.Crop
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = currentSong.title,
+                style = MaterialTheme.typography.titleMedium,
+                color = dominantColors.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = currentSong.artist,
+                style = MaterialTheme.typography.bodyMedium,
+                color = dominantColors.onBackground.copy(alpha = 0.7f),
+                maxLines = 1
+            )
+        }
+        IconButton(onClick = { /* TODO: Add to library */ }) {
+             Icon(
+                 imageVector = Icons.Default.StarOutline,
+                 contentDescription = "Favorite",
+                 tint = dominantColors.onBackground
+             )
+        }
+        IconButton(onClick = { /* TODO: More options */ }) {
+             Icon(
+                 imageVector = Icons.Default.MoreVert,
+                 contentDescription = "More",
+                 tint = dominantColors.onBackground
+             )
+        }
+    }
+}
+
+@Composable
+private fun QueueControlsRow(
+    dominantColors: DominantColors,
+    shuffleEnabled: Boolean,
+    repeatMode: RepeatMode,
+    isAutoplayEnabled: Boolean,
+    onToggleShuffle: () -> Unit,
+    onToggleRepeat: () -> Unit,
+    onToggleAutoplay: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // Shuffle
+        PlaybackChip(
+            text = "Shuffle",
+            icon = Icons.Default.Shuffle,
+            isSelected = shuffleEnabled,
+            dominantColors = dominantColors,
+            onClick = onToggleShuffle
+        )
+        
+        // Repeat
+        val repeatIcon = when (repeatMode) {
+            RepeatMode.ONE -> Icons.Default.RepeatOne
+            else -> Icons.Default.Repeat
+        }
+        PlaybackChip(
+            text = "Repeat",
+            icon = repeatIcon,
+            isSelected = repeatMode != RepeatMode.OFF,
+            dominantColors = dominantColors,
+            onClick = onToggleRepeat
+        )
+        
+        // Autoplay
+        PlaybackChip(
+            text = "Autoplay",
+            icon = Icons.Default.PlayArrow, // Or infinity/similar icon
+            isSelected = isAutoplayEnabled,
+            dominantColors = dominantColors,
+            onClick = onToggleAutoplay
+        )
+    }
+}
+
+@Composable
+private fun PlaybackChip(
+    text: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    isSelected: Boolean,
+    dominantColors: DominantColors,
+    onClick: () -> Unit
+) {
+    Surface(
+        color = if (isSelected) dominantColors.onBackground.copy(alpha = 0.2f) 
+               else dominantColors.onBackground.copy(alpha = 0.05f),
+        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .clip(RoundedCornerShape(20.dp))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = Icons.Default.KeyboardArrowDown,
-                contentDescription = "Close queue",
-                tint = dominantColors.onBackground,
-                modifier = Modifier.size(32.dp)
+                imageVector = icon,
+                contentDescription = null,
+                tint = if (isSelected) dominantColors.onBackground else dominantColors.onBackground.copy(alpha = 0.7f),
+                modifier = Modifier.size(18.dp)
             )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelMedium,
+                color = if (isSelected) dominantColors.onBackground else dominantColors.onBackground.copy(alpha = 0.7f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun QueueItem(
+    song: Song,
+    isCurrent: Boolean,
+    isPlaying: Boolean,
+    onClick: () -> Unit,
+    dominantColors: DominantColors
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        AsyncImage(
+            model = song.thumbnailUrl,
+            contentDescription = song.title,
+            modifier = Modifier
+                .size(48.dp)
+                .clip(RoundedCornerShape(6.dp)),
+            contentScale = ContentScale.Crop,
+            alpha = if (isCurrent) 1f else 0.7f
+        )
+        
+        Spacer(modifier = Modifier.width(12.dp))
+        
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = song.title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (isCurrent) dominantColors.primary else dominantColors.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = song.artist,
+                style = MaterialTheme.typography.bodySmall,
+                color = dominantColors.onBackground.copy(alpha = 0.6f),
+                maxLines = 1
+            )
+        }
+        
+        if (isCurrent) {
+            // Show playing indicator
+            Icon(
+                imageVector = Icons.Default.RepeatOne, // Placeholder for "Playing" icon
+                contentDescription = "Playing",
+                tint = dominantColors.primary,
+                modifier = Modifier.size(20.dp)
+            )
+        } else {
+             // Drag handle
+             Icon(
+                 imageVector = Icons.Default.DragHandle,
+                 contentDescription = "Drag",
+                 tint = dominantColors.onBackground.copy(alpha = 0.4f),
+                 modifier = Modifier.size(24.dp)
+             )
         }
     }
 }
