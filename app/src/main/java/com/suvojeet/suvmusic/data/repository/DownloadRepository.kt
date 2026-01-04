@@ -79,8 +79,16 @@ class DownloadRepository @Inject constructor(
                 return@withContext false
             }
 
-            val request = Request.Builder().url(streamUrl).build()
-            val client = OkHttpClient()
+            val request = Request.Builder()
+                .url(streamUrl)
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                .build()
+            
+            val client = OkHttpClient.Builder()
+                .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+                
             val response = client.newCall(request).execute()
             
             if (!response.isSuccessful) {
