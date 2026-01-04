@@ -77,7 +77,7 @@ fun SongCreditsSheet(
         ) {
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .fillMaxWidth()
                     .background(Color(0xFF0D0D0D))
             ) {
                 // Blurred background artwork
@@ -109,10 +109,9 @@ fun SongCreditsSheet(
                 
                 Column(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .statusBarsPadding()
-                        .navigationBarsPadding()
+                        .fillMaxWidth()
                         .verticalScroll(rememberScrollState())
+                        .padding(bottom = 32.dp)
                 ) {
                     // Top bar with close button
                     Row(
@@ -365,7 +364,9 @@ private fun CreditDivider() {
 }
 
 private fun formatDurationForCredits(duration: Long): String {
+    if (duration <= 0) return "Unknown"
     val totalSeconds = duration / 1000
+    if (totalSeconds <= 0) return "Unknown"
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
     return "${minutes}m ${seconds}s"
