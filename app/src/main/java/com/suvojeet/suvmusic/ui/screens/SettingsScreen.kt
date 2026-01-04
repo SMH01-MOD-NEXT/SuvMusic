@@ -19,7 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Login
+import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -119,7 +119,7 @@ fun SettingsScreen(
             )
         } else {
             SettingsItem(
-                icon = Icons.Default.Login,
+                icon = Icons.AutoMirrored.Filled.Login,
                 title = "Sign in to YouTube Music",
                 subtitle = "Access your playlists and recommendations",
                 onClick = { /* Open WebView login */ }

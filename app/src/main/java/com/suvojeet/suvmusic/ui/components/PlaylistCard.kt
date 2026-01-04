@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlaylistPlay
+import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -84,7 +84,7 @@ fun PlaylistCard(
                     )
                 } else {
                     Icon(
-                        imageVector = Icons.Default.PlaylistPlay,
+                        imageVector = Icons.AutoMirrored.Filled.PlaylistPlay,
                         contentDescription = null,
                         modifier = Modifier.size(64.dp),
                         tint = Color.White.copy(alpha = 0.8f)
