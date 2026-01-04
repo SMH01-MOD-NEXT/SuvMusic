@@ -5,6 +5,7 @@ import com.suvojeet.suvmusic.data.SessionManager
 import com.suvojeet.suvmusic.data.YouTubeAuthUtils
 import com.suvojeet.suvmusic.data.model.Album
 import com.suvojeet.suvmusic.data.model.Artist
+import com.suvojeet.suvmusic.data.model.Playlist
 import com.suvojeet.suvmusic.data.model.PlaylistDisplayItem
 import com.suvojeet.suvmusic.data.model.Song
 import kotlinx.coroutines.Dispatchers
@@ -173,19 +174,21 @@ class YouTubeRepository @Inject constructor(
                 e.printStackTrace()
             }
         }
-        getPlaylist("LM") 
+        getPlaylist("LM").songs 
     }
     
-    suspend fun getPlaylist(playlistId: String): List<Song> = withContext(Dispatchers.IO) {
+    suspend fun getPlaylist(playlistId: String): Playlist = withContext(Dispatchers.IO) {
         if (playlistId == "LM" || playlistId == "VLLM") {
-            // Fallback to NewPipe for Liked Music if internal API fails or not logged in properly
+            // Fallback to NewPipe for Liked Music
              try {
                 val urlId = "LM"
                 val playlistUrl = "https://www.youtube.com/playlist?list=$urlId"
-                val ytService = ServiceList.all().find { it.serviceInfo.name == "YouTube" } ?: return@withContext emptyList()
+                val ytService = ServiceList.all().find { it.serviceInfo.name == "YouTube" } 
+                    ?: return@withContext Playlist(playlistId, "Liked Music", "You", null, emptyList())
+                
                 val playlistExtractor = ytService.getPlaylistExtractor(playlistUrl)
                 playlistExtractor.fetchPage()
-                return@withContext playlistExtractor.initialPage.items
+                val songs = playlistExtractor.initialPage.items
                     .filterIsInstance<StreamInfoItem>()
                     .mapNotNull { item ->
                         Song.fromYouTube(
@@ -197,25 +200,36 @@ class YouTubeRepository @Inject constructor(
                             thumbnailUrl = item.thumbnails?.firstOrNull()?.url
                         )
                     }
-             } catch(e: Exception) { return@withContext emptyList() }
+                return@withContext Playlist(
+                    id = playlistId,
+                    title = "Liked Music",
+                    author = "You",
+                    thumbnailUrl = null,
+                    songs = songs
+                )
+             } catch(e: Exception) { 
+                 return@withContext Playlist(playlistId, "Error", "", null, emptyList())
+             }
         }
 
         try {
             // Try internal API first for better metadata
             val browseId = if (playlistId.startsWith("VL")) playlistId else "VL$playlistId"
             val json = fetchInternalApi(browseId)
-            val songs = parseSongsFromInternalJson(json)
-            if (songs.isNotEmpty()) return@withContext songs
+            val playlist = parsePlaylistFromInternalJson(json, playlistId)
+            if (playlist.songs.isNotEmpty()) return@withContext playlist
         } catch(e: Exception) { }
 
         // Fallback to NewPipe
         try {
             val urlId = if (playlistId.startsWith("VL")) playlistId.removePrefix("VL") else playlistId
             val playlistUrl = "https://www.youtube.com/playlist?list=$urlId"
-            val ytService = ServiceList.all().find { it.serviceInfo.name == "YouTube" } ?: return@withContext emptyList()
+            val ytService = ServiceList.all().find { it.serviceInfo.name == "YouTube" } 
+                ?: return@withContext Playlist(playlistId, "Error", "", null, emptyList())
+            
             val playlistExtractor = ytService.getPlaylistExtractor(playlistUrl)
             playlistExtractor.fetchPage()
-            playlistExtractor.initialPage.items
+            val songs = playlistExtractor.initialPage.items
                 .filterIsInstance<StreamInfoItem>()
                 .mapNotNull { item ->
                     Song.fromYouTube(
@@ -227,8 +241,16 @@ class YouTubeRepository @Inject constructor(
                         thumbnailUrl = item.thumbnails?.firstOrNull()?.url
                     )
                 }
+            
+            Playlist(
+                id = playlistId,
+                title = playlistExtractor.name ?: "Unknown Playlist",
+                author = playlistExtractor.uploaderName ?: "Unknown",
+                thumbnailUrl = songs.firstOrNull()?.thumbnailUrl,
+                songs = songs
+            )
         } catch (e: Exception) {
-            emptyList()
+            Playlist(playlistId, "Error", "", null, emptyList())
         }
     }
 
@@ -387,6 +409,27 @@ class YouTubeRepository @Inject constructor(
     // ============================================================================================
     // Parsers
     // ============================================================================================
+
+    private fun parsePlaylistFromInternalJson(json: String, playlistId: String): Playlist {
+        val root = JSONObject(json)
+        val header = root.optJSONObject("header")?.optJSONObject("musicDetailHeaderRenderer")
+            ?: root.optJSONObject("header")?.optJSONObject("musicResponsiveHeaderRenderer")
+        
+        val title = getRunText(header?.optJSONObject("title")) ?: "Unknown Playlist"
+        val subtitle = getRunText(header?.optJSONObject("subtitle")) // Created by ... • ... songs
+        val author = subtitle?.split("•")?.firstOrNull()?.removePrefix("Created by ")?.trim() ?: "Unknown"
+        val thumbnailUrl = extractThumbnail(header?.optJSONObject("thumbnail"))
+        
+        val songs = parseSongsFromInternalJson(json)
+        
+        return Playlist(
+            id = playlistId,
+            title = title,
+            author = author,
+            thumbnailUrl = thumbnailUrl,
+            songs = songs
+        )
+    }
 
     private fun parseSongsFromInternalJson(json: String): List<Song> {
         val songs = mutableListOf<Song>()

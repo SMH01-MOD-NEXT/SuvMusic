@@ -78,7 +78,10 @@ fun MusicCard(
     onClick: () -> Unit,
     onMoreClick: () -> Unit = {},
     isPlaying: Boolean = false,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    backgroundColor: Color? = null,
+    textColor: Color? = null,
+    subTextColor: Color? = null
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -90,27 +93,26 @@ fun MusicCard(
         label = "elevation"
     )
     
-    val backgroundColor by animateColorAsState(
-        targetValue = if (isPlaying) 
-            MaterialTheme.colorScheme.primaryContainer 
-        else 
-            MaterialTheme.colorScheme.surfaceContainerHigh,
-        label = "backgroundColor"
-    )
+    val defaultBackgroundColor = if (isPlaying) 
+        MaterialTheme.colorScheme.primaryContainer 
+    else 
+        MaterialTheme.colorScheme.surfaceContainerHigh
+
+    val cardBackgroundColor = backgroundColor ?: defaultBackgroundColor
     
     val highResThumbnail = getHighResThumbnail(song.thumbnailUrl)
     
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .shadow(elevation, MusicCardShape)
+            .shadow(if (backgroundColor == Color.Transparent) 0.dp else elevation, MusicCardShape)
             .clip(MusicCardShape)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick
             ),
-        color = backgroundColor,
+        color = cardBackgroundColor,
         shape = MusicCardShape
     ) {
         Row(
@@ -182,10 +184,10 @@ fun MusicCard(
                 Text(
                     text = song.title,
                     style = MaterialTheme.typography.titleMedium,
-                    color = if (isPlaying) 
+                    color = textColor ?: (if (isPlaying) 
                         MaterialTheme.colorScheme.primary 
                     else 
-                        MaterialTheme.colorScheme.onSurface,
+                        MaterialTheme.colorScheme.onSurface),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -193,7 +195,7 @@ fun MusicCard(
                 Text(
                     text = song.artist,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = subTextColor ?: MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -204,7 +206,7 @@ fun MusicCard(
                 Icon(
                     imageVector = Icons.Default.MoreVert,
                     contentDescription = "More options",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = subTextColor ?: MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }

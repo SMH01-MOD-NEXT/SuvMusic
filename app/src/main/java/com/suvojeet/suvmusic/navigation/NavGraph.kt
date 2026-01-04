@@ -16,6 +16,7 @@ import com.suvojeet.suvmusic.data.model.PlayerState
 import com.suvojeet.suvmusic.ui.screens.HomeScreen
 import com.suvojeet.suvmusic.ui.screens.LibraryScreen
 import com.suvojeet.suvmusic.ui.screens.PlayerScreen
+import com.suvojeet.suvmusic.ui.screens.PlaylistScreen
 import com.suvojeet.suvmusic.ui.screens.SearchScreen
 import com.suvojeet.suvmusic.ui.screens.SettingsScreen
 import com.suvojeet.suvmusic.ui.screens.YouTubeLoginScreen
@@ -63,7 +64,9 @@ fun NavGraph(
         composable(Destination.Home.route) {
             HomeScreen(
                 onSongClick = { onPlaySong(it) },
-                onPlaylistClick = { /* Navigate to playlist */ }
+                onPlaylistClick = { 
+                    navController.navigate(Destination.Playlist(it.getPlaylistId()).route) 
+                }
             )
         }
         
@@ -76,7 +79,9 @@ fun NavGraph(
         composable(Destination.Library.route) {
             LibraryScreen(
                 onSongClick = { onPlaySong(it) },
-                onPlaylistClick = { /* Navigate to playlist */ }
+                onPlaylistClick = { 
+                     navController.navigate(Destination.Playlist(it.getPlaylistId()).route) 
+                }
             )
         }
         
@@ -121,8 +126,20 @@ fun NavGraph(
                 }
             )
         ) { backStackEntry ->
-            val playlistId = backStackEntry.arguments?.getString(Destination.Playlist.ARG_PLAYLIST_ID)
-            // PlaylistScreen(playlistId = playlistId ?: "")
+            PlaylistScreen(
+                onBackClick = { navController.popBackStack() },
+                onSongClick = { onPlaySong(it) },
+                onPlayAll = { songs -> 
+                    if (songs.isNotEmpty()) {
+                         onPlaySong(songs.first()) // Simplified for now, should play all
+                    }
+                },
+                onShufflePlay = { songs ->
+                     if (songs.isNotEmpty()) {
+                         onPlaySong(songs.shuffled().first()) // Simplified
+                     }
+                }
+            )
         }
 
         composable(
