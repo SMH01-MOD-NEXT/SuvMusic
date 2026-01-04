@@ -19,12 +19,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.suvojeet.suvmusic.data.SessionManager
 import com.suvojeet.suvmusic.data.model.Song
 import com.suvojeet.suvmusic.navigation.Destination
 import com.suvojeet.suvmusic.navigation.NavGraph
@@ -90,15 +91,10 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun SuvMusicApp(sessionManager: SessionManager = hiltViewModel<com.suvojeet.suvmusic.ui.viewmodel.SettingsViewModel>().let { 
-    // Get SessionManager from SettingsViewModel - this is a workaround
-    // In a real app, you'd inject this properly
-    return@let null
-} ?: run {
-    // Create from application context
-    val context = androidx.compose.ui.platform.LocalContext.current
-    remember { SessionManager(context) }
-}) {
+fun SuvMusicApp() {
+    val context = LocalContext.current
+    val sessionManager = remember { SessionManager(context) }
+    
     val navController = rememberNavController()
     val playerViewModel: PlayerViewModel = hiltViewModel()
     val playerState by playerViewModel.playerState.collectAsState()
