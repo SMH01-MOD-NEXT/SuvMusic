@@ -178,38 +178,63 @@ class YouTubeRepository @Inject constructor(
     }
     
     suspend fun getPlaylist(playlistId: String): Playlist = withContext(Dispatchers.IO) {
+        // Handle special playlists that require authentication
         if (playlistId == "LM" || playlistId == "VLLM") {
-            // Fallback to NewPipe for Liked Music
-             try {
-                val urlId = "LM"
-                val playlistUrl = "https://www.youtube.com/playlist?list=$urlId"
-                val ytService = ServiceList.all().find { it.serviceInfo.name == "YouTube" } 
-                    ?: return@withContext Playlist(playlistId, "Liked Music", "You", null, emptyList())
-                
-                val playlistExtractor = ytService.getPlaylistExtractor(playlistUrl)
-                playlistExtractor.fetchPage()
-                val songs = playlistExtractor.initialPage.items
-                    .filterIsInstance<StreamInfoItem>()
-                    .mapNotNull { item ->
-                        Song.fromYouTube(
-                            videoId = extractVideoId(item.url),
-                            title = item.name ?: "Unknown",
-                            artist = item.uploaderName ?: "Unknown Artist",
-                            album = playlistExtractor.name ?: "",
-                            duration = item.duration * 1000L,
-                            thumbnailUrl = item.thumbnails?.firstOrNull()?.url
+            // Use internal API for Liked Music if logged in
+            if (sessionManager.isLoggedIn()) {
+                try {
+                    val json = fetchInternalApi("FEmusic_liked_videos")
+                    val songs = parseSongsFromInternalJson(json)
+                    if (songs.isNotEmpty()) {
+                        return@withContext Playlist(
+                            id = playlistId,
+                            title = "Your Likes",
+                            author = "You",
+                            thumbnailUrl = songs.firstOrNull()?.thumbnailUrl,
+                            songs = songs
                         )
                     }
-                return@withContext Playlist(
-                    id = playlistId,
-                    title = "Liked Music",
-                    author = "You",
-                    thumbnailUrl = null,
-                    songs = songs
-                )
-             } catch(e: Exception) { 
-                 return@withContext Playlist(playlistId, "Error", "", null, emptyList())
-             }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+            // Return empty playlist if not logged in or API fails
+            return@withContext Playlist(
+                id = playlistId,
+                title = "Your Likes",
+                author = "You",
+                thumbnailUrl = null,
+                songs = emptyList()
+            )
+        }
+        
+        // Handle My Supermix (auto-generated radio)
+        if (playlistId == "RTM" || playlistId == "RDTMAK") {
+            if (sessionManager.isLoggedIn()) {
+                try {
+                    // Supermix is based on recommendations
+                    val json = fetchInternalApi("FEmusic_home")
+                    val songs = parseSongsFromInternalJson(json)
+                    if (songs.isNotEmpty()) {
+                        return@withContext Playlist(
+                            id = playlistId,
+                            title = "My Supermix",
+                            author = "YouTube Music",
+                            thumbnailUrl = "https://www.gstatic.com/youtube/media/ytm/images/pbg/liked_music_@576.png",
+                            songs = songs.take(50) // Limit to 50 songs
+                        )
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+            return@withContext Playlist(
+                id = playlistId,
+                title = "My Supermix",
+                author = "YouTube Music",
+                thumbnailUrl = "https://www.gstatic.com/youtube/media/ytm/images/pbg/liked_music_@576.png",
+                songs = emptyList()
+            )
         }
 
         try {
@@ -220,7 +245,7 @@ class YouTubeRepository @Inject constructor(
             if (playlist.songs.isNotEmpty()) return@withContext playlist
         } catch(e: Exception) { }
 
-        // Fallback to NewPipe
+        // Fallback to NewPipe for public playlists
         try {
             val urlId = if (playlistId.startsWith("VL")) playlistId.removePrefix("VL") else playlistId
             val playlistUrl = "https://www.youtube.com/playlist?list=$urlId"
@@ -250,7 +275,7 @@ class YouTubeRepository @Inject constructor(
                 songs = songs
             )
         } catch (e: Exception) {
-            Playlist(playlistId, "Error", "", null, emptyList())
+            Playlist(playlistId, "Error loading playlist", "", null, emptyList())
         }
     }
 
