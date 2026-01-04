@@ -44,8 +44,9 @@ object AppModule {
     @Singleton
     fun provideMusicPlayer(
         @ApplicationContext context: Context,
-        youTubeRepository: YouTubeRepository
+        youTubeRepository: YouTubeRepository,
+        sessionManager: SessionManager
     ): MusicPlayer {
-        return MusicPlayer(context, youTubeRepository)
+        return MusicPlayer(context, youTubeRepository, sessionManager)
     }
 }
