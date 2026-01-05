@@ -78,8 +78,14 @@ fun NavGraph(
                         ).route
                     )
                 },
-                onAlbumClick = { albumId ->
-                    navController.navigate(Destination.Album(albumId).route)
+                onAlbumClick = { album ->
+                    navController.navigate(
+                        Destination.Album(
+                            albumId = album.id,
+                            name = album.title,
+                            thumbnailUrl = album.thumbnailUrl
+                        ).route
+                    )
                 }
             )
         }
@@ -199,8 +205,14 @@ fun NavGraph(
             com.suvojeet.suvmusic.ui.screens.ArtistScreen(
                 onBackClick = { navController.popBackStack() },
                 onSongClick = { onPlaySong(listOf(it), 0) },
-                onAlbumClick = { albumId -> 
-                    navController.navigate(Destination.Album(albumId).route)
+                onAlbumClick = { album -> 
+                    navController.navigate(
+                        Destination.Album(
+                            albumId = album.id,
+                            name = album.title,
+                            thumbnailUrl = album.thumbnailUrl
+                        ).route
+                    )
                 }
             )
         }
@@ -208,7 +220,17 @@ fun NavGraph(
         composable(
             route = Destination.Album.ROUTE,
             arguments = listOf(
-                navArgument(Destination.Album.ARG_ALBUM_ID) { type = NavType.StringType }
+                navArgument(Destination.Album.ARG_ALBUM_ID) { type = NavType.StringType },
+                navArgument(Destination.Album.ARG_NAME) {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+                navArgument(Destination.Album.ARG_THUMBNAIL) {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
             )
         ) {
             com.suvojeet.suvmusic.ui.screens.AlbumScreen(

@@ -35,7 +35,7 @@ import java.util.Calendar
 fun HomeScreen(
     onSongClick: (List<Song>, Int) -> Unit,
     onPlaylistClick: (PlaylistDisplayItem) -> Unit,
-    onAlbumClick: (String) -> Unit,
+    onAlbumClick: (com.suvojeet.suvmusic.data.model.Album) -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -117,7 +117,7 @@ private fun HomeItemCard(
     item: HomeItem,
     onSongClick: (List<Song>, Int) -> Unit,
     onPlaylistClick: (PlaylistDisplayItem) -> Unit,
-    onAlbumClick: (String) -> Unit,
+    onAlbumClick: (com.suvojeet.suvmusic.data.model.Album) -> Unit,
     sectionItems: List<HomeItem>
 ) {
     when (item) {
@@ -149,7 +149,7 @@ private fun HomeItemCard(
                     thumbnailUrl = item.album.thumbnailUrl
                 ),
                 onClick = { 
-                    onAlbumClick(item.album.id)
+                    onAlbumClick(item.album)
                 }
             )
         }

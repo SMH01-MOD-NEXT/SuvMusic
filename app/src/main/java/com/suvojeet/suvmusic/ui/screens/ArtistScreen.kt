@@ -58,7 +58,7 @@ import com.suvojeet.suvmusic.ui.viewmodel.ArtistViewModel
 fun ArtistScreen(
     onBackClick: () -> Unit,
     onSongClick: (Song) -> Unit,
-    onAlbumClick: (String) -> Unit,
+    onAlbumClick: (Album) -> Unit,
     viewModel: ArtistViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -134,7 +134,7 @@ fun ArtistScreen(
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             items(artist.albums) { album ->
-                                AlbumCard(album) { onAlbumClick(album.id) }
+                                AlbumCard(album) { onAlbumClick(album) }
                             }
                         }
                     }
@@ -149,7 +149,7 @@ fun ArtistScreen(
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             items(artist.singles) { album ->
-                                AlbumCard(album) { onAlbumClick(album.id) }
+                                AlbumCard(album) { onAlbumClick(album) }
                             }
                         }
                     }

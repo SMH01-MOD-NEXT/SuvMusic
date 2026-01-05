@@ -38,10 +38,22 @@ sealed class Destination(val route: String) {
         }
     }
 
-    data class Album(val albumId: String) : Destination("album/{albumId}" ) {
+    data class Album(
+        val albumId: String,
+        val name: String? = null,
+        val thumbnailUrl: String? = null
+    ) : Destination(buildRoute(albumId, name, thumbnailUrl)) {
         companion object {
-            const val ROUTE = "album/{albumId}"
+            const val ROUTE = "album/{albumId}?name={name}&thumbnail={thumbnail}"
             const val ARG_ALBUM_ID = "albumId"
+            const val ARG_NAME = "name"
+            const val ARG_THUMBNAIL = "thumbnail"
+            
+            fun buildRoute(albumId: String, name: String?, thumbnailUrl: String?): String {
+                val encodedName = java.net.URLEncoder.encode(name ?: "", "UTF-8")
+                val encodedThumb = java.net.URLEncoder.encode(thumbnailUrl ?: "", "UTF-8")
+                return "album/$albumId?name=$encodedName&thumbnail=$encodedThumb"
+            }
         }
     }
 }
