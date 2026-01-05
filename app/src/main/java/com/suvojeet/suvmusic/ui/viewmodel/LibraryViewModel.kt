@@ -78,6 +78,24 @@ class LibraryViewModel @Inject constructor(
         }
     }
     
+    fun createPlaylist(
+        title: String,
+        description: String,
+        isPrivate: Boolean,
+        onComplete: () -> Unit
+    ) {
+        viewModelScope.launch {
+            val privacyStatus = if (isPrivate) "PRIVATE" else "PUBLIC"
+            val playlistId = youTubeRepository.createPlaylist(title, description, privacyStatus)
+            if (playlistId != null) {
+                // Refresh playlists to show the new one
+                val playlists = youTubeRepository.getUserPlaylists()
+                _uiState.update { it.copy(playlists = playlists) }
+            }
+            onComplete()
+        }
+    }
+    
     fun refresh() {
         loadData()
     }
