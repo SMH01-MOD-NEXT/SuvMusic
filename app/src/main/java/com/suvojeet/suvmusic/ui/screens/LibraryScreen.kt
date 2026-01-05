@@ -59,6 +59,7 @@ import com.suvojeet.suvmusic.ui.viewmodel.LibraryViewModel
 fun LibraryScreen(
     onSongClick: (List<Song>, Int) -> Unit,
     onPlaylistClick: (PlaylistDisplayItem) -> Unit,
+    onDownloadsClick: () -> Unit = {},
     viewModel: LibraryViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -107,7 +108,8 @@ fun LibraryScreen(
             1 -> OfflineTab(
                 localSongs = uiState.localSongs,
                 downloadedSongs = uiState.downloadedSongs,
-                onSongClick = onSongClick
+                onSongClick = onSongClick,
+                onDownloadsClick = onDownloadsClick
             )
             2 -> LikedTab(
                 songs = uiState.likedSongs,

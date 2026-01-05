@@ -107,6 +107,24 @@ fun NavGraph(
                             thumbnailUrl = playlist.thumbnailUrl
                         ).route
                     )
+                },
+                onDownloadsClick = {
+                    navController.navigate(Destination.Downloads.route)
+                }
+            )
+        }
+
+        composable(Destination.Downloads.route) {
+            com.suvojeet.suvmusic.ui.screens.DownloadsScreen(
+                onBackClick = { navController.popBackStack() },
+                onSongClick = { songs, index -> onPlaySong(songs, index) },
+                onPlayAll = { songs -> onPlaySong(songs, 0) },
+                onShufflePlay = { songs -> 
+                    // Shuffle logic should be handled by player or passing shuffled list
+                    // For now, we can just pass the list and handle shuffle in player if needed
+                    // Or ideally pass a shuffled list from here
+                    val shuffledSongs = songs.shuffled()
+                    onPlaySong(shuffledSongs, 0)
                 }
             )
         }
