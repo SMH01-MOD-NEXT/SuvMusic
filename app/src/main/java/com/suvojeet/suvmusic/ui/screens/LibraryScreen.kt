@@ -347,24 +347,12 @@ private fun OfflineTab(
         }
         
         // Downloaded Songs Section Card
-        if (downloadedSongs.isNotEmpty()) {
+            if (downloadedSongs.isNotEmpty()) {
             item {
                 DownloadedSongsCard(
                     songCount = downloadedSongs.size,
                     totalDuration = downloadedSongs.sumOf { it.duration },
                     onClick = onDownloadsClick
-                )
-            }
-            
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-            
-            // Show all downloaded songs
-            itemsIndexed(downloadedSongs) { index, song ->
-                MusicCard(
-                    song = song,
-                    onClick = { onSongClick(downloadedSongs, index) }
                 )
             }
         }
