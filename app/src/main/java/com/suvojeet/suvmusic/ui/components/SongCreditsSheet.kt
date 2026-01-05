@@ -75,84 +75,87 @@ fun SongCreditsSheet(
             containerColor = Color.Transparent,
             dragHandle = null
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFF0D0D0D))
-            ) {
-                // Blurred background artwork
-                AsyncImage(
-                    model = song.thumbnailUrl,
-                    contentDescription = null,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(400.dp)
-                        .blur(60.dp),
-                    contentScale = ContentScale.Crop
-                )
-                
-                // Gradient overlay
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(400.dp)
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.Transparent,
-                                    Color(0xFF0D0D0D).copy(alpha = 0.7f),
-                                    Color(0xFF0D0D0D)
-                                )
-                            )
-                        )
-                )
-                
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                        .padding(bottom = 32.dp)
-                ) {
-                    // Top bar with close button
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(50),
-                            color = Color.White.copy(alpha = 0.2f),
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            IconButton(onClick = onDismiss) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Close",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                    }
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    // Artwork
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 60.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        AsyncImage(
-                            model = song.thumbnailUrl,
-                            contentDescription = song.title,
-                            modifier = Modifier
-                                .size(200.dp)
-                                .clip(RoundedCornerShape(12.dp)),
-                            contentScale = ContentScale.Crop
-                        )
+            Box(\r
+                modifier = Modifier\r
+                    .fillMaxWidth()\r
+                    .background(Color(0xFF0D0D0D))\r
+            ) {\r
+                // Get high resolution thumbnail URL\r
+                val highResThumbnail = getHighResThumbnailUrl(song.thumbnailUrl, song.id)\r
+                \r
+                // Blurred background artwork\r
+                AsyncImage(\r
+                    model = highResThumbnail,\r
+                    contentDescription = null,\r
+                    modifier = Modifier\r
+                        .fillMaxWidth()\r
+                        .height(400.dp)\r
+                        .blur(60.dp),\r
+                    contentScale = ContentScale.Crop\r
+                )\r
+                \r
+                // Gradient overlay\r
+                Box(\r
+                    modifier = Modifier\r
+                        .fillMaxWidth()\r
+                        .height(400.dp)\r
+                        .background(\r
+                            Brush.verticalGradient(\r
+                                colors = listOf(\r
+                                    Color.Transparent,\r
+                                    Color(0xFF0D0D0D).copy(alpha = 0.7f),\r
+                                    Color(0xFF0D0D0D)\r
+                                )\r
+                            )\r
+                        )\r
+                )\r
+                \r
+                Column(\r
+                    modifier = Modifier\r
+                        .fillMaxWidth()\r
+                        .verticalScroll(rememberScrollState())\r
+                        .padding(bottom = 32.dp)\r
+                ) {\r
+                    // Top bar with close button\r
+                    Row(\r
+                        modifier = Modifier\r
+                            .fillMaxWidth()\r
+                            .padding(12.dp),\r
+                        horizontalArrangement = Arrangement.End\r
+                    ) {\r
+                        Surface(\r
+                            shape = RoundedCornerShape(50),\r
+                            color = Color.White.copy(alpha = 0.2f),\r
+                            modifier = Modifier.size(36.dp)\r
+                        ) {\r
+                            IconButton(onClick = onDismiss) {\r
+                                Icon(\r
+                                    imageVector = Icons.Default.Close,\r
+                                    contentDescription = "Close",\r
+                                    tint = Color.White,\r
+                                    modifier = Modifier.size(20.dp)\r
+                                )\r
+                            }\r
+                        }\r
+                    }\r
+                    \r
+                    Spacer(modifier = Modifier.height(16.dp))\r
+                    \r
+                    // Artwork - High Quality\r
+                    Box(\r
+                        modifier = Modifier\r
+                            .fillMaxWidth()\r
+                            .padding(horizontal = 60.dp),\r
+                        contentAlignment = Alignment.Center\r
+                    ) {\r
+                        AsyncImage(\r
+                            model = highResThumbnail,\r
+                            contentDescription = song.title,\r
+                            modifier = Modifier\r
+                                .size(200.dp)\r
+                                .clip(RoundedCornerShape(12.dp)),\r
+                            contentScale = ContentScale.Crop\r
+                        )\r
                     }
                     
                     Spacer(modifier = Modifier.height(24.dp))
@@ -370,4 +373,30 @@ private fun formatDurationForCredits(duration: Long): String {
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
     return "${minutes}m ${seconds}s"
+}
+
+/**
+ * Get high resolution thumbnail URL for YouTube videos.
+ * Converts low-res thumbnails to maxresdefault quality.
+ */
+private fun getHighResThumbnailUrl(originalUrl: String?, videoId: String): String {
+    // If no URL, try to construct from video ID
+    if (originalUrl.isNullOrBlank()) {
+        return "https://img.youtube.com/vi/$videoId/maxresdefault.jpg"
+    }
+    
+    // If it's already a YouTube thumbnail URL, upgrade to maxresdefault
+    if (originalUrl.contains("ytimg.com") || originalUrl.contains("youtube.com")) {
+        // Extract video ID from various YouTube thumbnail URL formats
+        val ytVideoId = when {
+            originalUrl.contains("/vi/") -> {
+                originalUrl.substringAfter("/vi/").substringBefore("/")
+            }
+            else -> videoId
+        }
+        return "https://img.youtube.com/vi/$ytVideoId/maxresdefault.jpg"
+    }
+    
+    // For non-YouTube URLs, return original
+    return originalUrl
 }
