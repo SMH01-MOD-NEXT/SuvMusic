@@ -180,6 +180,13 @@ fun NavGraph(
             YouTubeLoginScreen(
                 sessionManager = sessionManager,
                 onLoginSuccess = {
+                    // Show success message
+                    android.widget.Toast.makeText(
+                        navController.context,
+                        "Login Successful",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+
                     // Mark onboarding as completed
                     scope.launch {
                         sessionManager.setOnboardingCompleted(true)

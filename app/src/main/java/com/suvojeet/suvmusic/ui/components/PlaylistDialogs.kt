@@ -2,6 +2,7 @@ package com.suvojeet.suvmusic.ui.components
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -249,107 +250,153 @@ fun CreatePlaylistDialog(
         var description by remember { mutableStateOf("") }
         var isPrivate by remember { mutableStateOf(true) }
         
-        AlertDialog(
-            onDismissRequest = { if (!isCreating) onDismiss() },
-            title = {
-                Text(
-                    text = "Create Playlist",
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Column {
-                    OutlinedTextField(
+        // Use standard Dialog for custom styling
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { if (!isCreating) onDismiss() }
+        ) {
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "New Playlist",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 24.dp)
+                    )
+
+                    // Artwork Placeholder (Apple Music Style)
+                    Surface(
+                        modifier = Modifier
+                            .size(180.dp)
+                            .padding(bottom = 24.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        shadowElevation = 0.dp
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    imageVector = Icons.Default.Add, // Using Add as a verified safe icon
+                                    contentDescription = "Add Artwork",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(48.dp)
+                                )
+                            }
+                            // Overlay a subtle border or effect if needed
+                        }
+                    }
+
+                    // Title Input
+                    androidx.compose.foundation.text.BasicTextField(
                         value = title,
                         onValueChange = { title = it },
-                        label = { Text("Playlist name") },
+                        textStyle = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        ),
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !isCreating
-                    )
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    OutlinedTextField(
-                        value = description,
-                        onValueChange = { description = it },
-                        label = { Text("Description (optional)") },
+                        enabled = !isCreating,
+                        decorationBox = { innerTextField ->
+                            Box(contentAlignment = Alignment.Center) {
+                                if (title.isEmpty()) {
+                                    Text(
+                                        text = "Playlist Name",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                                innerTextField()
+                            }
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(100.dp),
-                        enabled = !isCreating
+                            .padding(bottom = 16.dp)
                     )
                     
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    Text(
-                        text = "Privacy",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(
-                            selected = isPrivate,
-                            onClick = { isPrivate = true },
-                            label = { Text("Private") },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.Lock,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            },
-                            enabled = !isCreating
-                        )
-                        
-                        FilterChip(
-                            selected = !isPrivate,
-                            onClick = { isPrivate = false },
-                            label = { Text("Public") },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.Public,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            },
-                            enabled = !isCreating
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = { 
-                        if (title.isNotBlank()) {
-                            onCreate(title, description, isPrivate)
+                    HorizontalDivider(modifier = Modifier.padding(bottom = 16.dp))
+
+                    // Description Input
+                    androidx.compose.foundation.text.BasicTextField(
+                        value = description,
+                        onValueChange = { description = it },
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(
+                            color = MaterialTheme.colorScheme.onSurface,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 24.dp),
+                        enabled = !isCreating,
+                         decorationBox = { innerTextField ->
+                            Box(contentAlignment = Alignment.Center) {
+                                if (description.isEmpty()) {
+                                    Text(
+                                        text = "Description",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                    )
+                                }
+                                innerTextField()
+                            }
                         }
-                    },
-                    enabled = title.isNotBlank() && !isCreating
-                ) {
-                    if (isCreating) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
+                    )
+
+
+                    // Action Buttons
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(
+                            onClick = onDismiss,
+                            enabled = !isCreating
+                        ) {
+                            Text(
+                                "Cancel", 
+                                color = MaterialTheme.colorScheme.primary,
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+
+                        Button(
+                            onClick = { 
+                                if (title.isNotBlank()) {
+                                    onCreate(title, description, isPrivate)
+                                }
+                            },
+                            enabled = title.isNotBlank() && !isCreating,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            if (isCreating) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                            }
+                            Text("Create", fontWeight = FontWeight.Bold)
+                        }
                     }
-                    Text(if (isCreating) "Creating..." else "Create")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = onDismiss,
-                    enabled = !isCreating
-                ) {
-                    Text("Cancel")
                 }
             }
-        )
+        }
     }
 }
 

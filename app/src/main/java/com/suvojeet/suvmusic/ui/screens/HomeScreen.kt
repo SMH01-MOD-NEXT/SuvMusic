@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -67,10 +66,9 @@ fun HomeScreen(
                 contentPadding = PaddingValues(bottom = 140.dp),
                 verticalArrangement = Arrangement.spacedBy(28.dp)
             ) {
-                // Profile Header with Greeting
+                // Greeting Header
                 item {
                     ProfileHeader(
-                        userAvatarUrl = uiState.userAvatarUrl,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                     )
                 }
@@ -179,7 +177,6 @@ private fun getGreeting(): String {
 
 @Composable
 private fun ProfileHeader(
-    userAvatarUrl: String?,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -187,33 +184,6 @@ private fun ProfileHeader(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Profile Avatar
-        if (userAvatarUrl != null) {
-            AsyncImage(
-                model = userAvatarUrl,
-                contentDescription = "Profile",
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape),
-                contentScale = ContentScale.Crop
-            )
-        } else {
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                modifier = Modifier.size(40.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = androidx.compose.material.icons.Icons.Default.Person,
-                        contentDescription = "Guest",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-        }
-        
         // Greeting Text
         Text(
             text = getGreeting(),
