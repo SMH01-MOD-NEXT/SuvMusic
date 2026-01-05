@@ -59,6 +59,11 @@ class MusicPlayer @Inject constructor(
     private var crossfadeJob: Job? = null
     private var crossfadeAnimator: ValueAnimator? = null
     
+    // Preloading state for gapless playback
+    private var preloadedNextSongId: String? = null
+    private var preloadedStreamUrl: String? = null
+    private var isPreloading = false
+    
     init {
         connectToService()
     }
@@ -192,10 +197,102 @@ class MusicPlayer @Inject constructor(
                         )
                     }
                     
+                    // Check if we need to preload next song for gapless playback
+                    if (sessionManager.isGaplessPlaybackEnabled()) {
+                        checkPreloadNextSong(currentPos, duration)
+                    }
+                    
                     // Check if we need to start crossfade
                     checkCrossfade(currentPos, duration)
                 }
                 delay(250) // Check more frequently for smoother crossfade
+            }
+        }
+    }
+    
+    /**
+     * Preload next song's stream URL ahead of time for gapless playback.
+     * Starts preloading ~15 seconds before current song ends.
+     */
+    private fun checkPreloadNextSong(currentPosition: Long, duration: Long) {
+        if (isPreloading || duration <= 0) return
+        
+        val preloadStartMs = duration - 15000L // Start preloading 15 seconds before end
+        if (currentPosition < preloadStartMs) return
+        
+        val state = _playerState.value
+        var nextIndex = state.currentIndex + 1
+        
+        // Handle shuffle mode
+        if (state.shuffleEnabled && state.queue.size > 1) {
+            // For shuffle, we can't predict the next song, so skip preloading
+            return
+        }
+        
+        // Handle repeat/autoplay
+        if (nextIndex >= state.queue.size) {
+            if (state.repeatMode == RepeatMode.ALL) {
+                nextIndex = 0
+            } else if (state.isAutoplayEnabled && state.queue.isNotEmpty()) {
+                nextIndex = 0 // Autoplay will loop
+            } else {
+                return // No next song
+            }
+        }
+        
+        val nextSong = state.queue.getOrNull(nextIndex) ?: return
+        
+        // Check if already preloaded
+        if (preloadedNextSongId == nextSong.id && preloadedStreamUrl != null) {
+            return
+        }
+        
+        isPreloading = true
+        scope.launch {
+            try {
+                val streamUrl = if (nextSong.source == SongSource.LOCAL || nextSong.source == SongSource.DOWNLOADED) {
+                    nextSong.localUri.toString()
+                } else {
+                    youTubeRepository.getStreamUrl(nextSong.id)
+                }
+                
+                if (streamUrl != null) {
+                    preloadedNextSongId = nextSong.id
+                    preloadedStreamUrl = streamUrl
+                    
+                    // Update the media item in the queue with resolved URL
+                    updateNextMediaItemWithPreloadedUrl(nextIndex, nextSong, streamUrl)
+                }
+            } catch (e: Exception) {
+                // Preload failed, will resolve on transition
+            } finally {
+                isPreloading = false
+            }
+        }
+    }
+    
+    /**
+     * Update the next media item in the player with the preloaded stream URL.
+     */
+    private fun updateNextMediaItemWithPreloadedUrl(index: Int, song: Song, streamUrl: String) {
+        mediaController?.let { controller ->
+            if (index < controller.mediaItemCount) {
+                val newMediaItem = MediaItem.Builder()
+                    .setUri(streamUrl)
+                    .setMediaId(song.id)
+                    .setMediaMetadata(
+                        MediaMetadata.Builder()
+                            .setTitle(song.title)
+                            .setArtist(song.artist)
+                            .setAlbumTitle(song.album)
+                            .setArtworkUri(song.thumbnailUrl?.let { android.net.Uri.parse(it) })
+                            .build()
+                    )
+                    .build()
+                
+                // Replace the placeholder media item with resolved one
+                controller.removeMediaItem(index)
+                controller.addMediaItem(index, newMediaItem)
             }
         }
     }
@@ -249,8 +346,10 @@ class MusicPlayer @Inject constructor(
                     return@launch
                 }
                 
-                // Resolve stream URL for next song
-                val streamUrl = if (nextSong.source == SongSource.LOCAL || nextSong.source == SongSource.DOWNLOADED) {
+                // Use preloaded URL if available, otherwise fetch
+                val streamUrl = if (preloadedNextSongId == nextSong.id && preloadedStreamUrl != null) {
+                    preloadedStreamUrl!!
+                } else if (nextSong.source == SongSource.LOCAL || nextSong.source == SongSource.DOWNLOADED) {
                     nextSong.localUri.toString()
                 } else {
                     youTubeRepository.getStreamUrl(nextSong.id)
@@ -297,6 +396,11 @@ class MusicPlayer @Inject constructor(
     fun playSong(song: Song, queue: List<Song> = listOf(song), startIndex: Int = 0) {
         // Cancel any ongoing crossfade
         cancelCrossfade()
+        
+        // Reset preload state
+        preloadedNextSongId = null
+        preloadedStreamUrl = null
+        isPreloading = false
         
         scope.launch {
             _playerState.update { 
