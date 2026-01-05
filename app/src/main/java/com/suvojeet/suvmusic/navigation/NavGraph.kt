@@ -23,6 +23,7 @@ import com.suvojeet.suvmusic.ui.screens.SearchScreen
 import com.suvojeet.suvmusic.ui.screens.SettingsScreen
 import com.suvojeet.suvmusic.ui.screens.WelcomeScreen
 import com.suvojeet.suvmusic.ui.screens.YouTubeLoginScreen
+import kotlinx.coroutines.launch
 
 /**
  * Main navigation graph for the app.
@@ -47,6 +48,8 @@ fun NavGraph(
     modifier: Modifier = Modifier,
     startDestination: String = Destination.Home.route
 ) {
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+
     NavHost(
         navController = navController,
         startDestination = startDestination,
@@ -177,7 +180,16 @@ fun NavGraph(
             YouTubeLoginScreen(
                 sessionManager = sessionManager,
                 onLoginSuccess = {
-                    navController.popBackStack()
+                    // Mark onboarding as completed
+                    scope.launch {
+                        sessionManager.setOnboardingCompleted(true)
+                    }
+                    
+                    // Navigate to Home and clear back stack
+                    navController.navigate(Destination.Home.route) {
+                        popUpTo(0) { inclusive = true }
+                        launchSingleTop = true
+                    }
                 },
                 onBack = {
                     navController.popBackStack()
@@ -188,10 +200,8 @@ fun NavGraph(
         composable(Destination.Welcome.route) {
             WelcomeScreen(
                 onLoginClick = {
-                    // Navigate to login, and clear back stack so user can't go back to welcome
-                    navController.navigate(Destination.YouTubeLogin.route) {
-                        popUpTo(Destination.Welcome.route) { inclusive = true }
-                    }
+                    // Navigate to login page
+                    navController.navigate(Destination.YouTubeLogin.route)
                 },
                 onSkipClick = {
                     // Navigate to home, and clear back stack
