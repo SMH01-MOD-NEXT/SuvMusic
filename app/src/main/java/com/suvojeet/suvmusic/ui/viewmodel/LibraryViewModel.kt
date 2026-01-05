@@ -52,6 +52,9 @@ class LibraryViewModel @Inject constructor(
             _uiState.update { it.copy(isLoading = true) }
             
             try {
+                // Refresh downloads to scan for new files in Downloads/SuvMusic
+                downloadRepository.refreshDownloads()
+                
                 val playlists = youTubeRepository.getUserPlaylists()
                 val localSongs = localAudioRepository.getAllLocalSongs()
                 val likedSongs = youTubeRepository.getLikedMusic()

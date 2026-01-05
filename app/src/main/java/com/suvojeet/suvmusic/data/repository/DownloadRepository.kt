@@ -63,6 +63,69 @@ class DownloadRepository @Inject constructor(
         loadDownloads()
         // Migrate old downloads from internal storage to public Downloads folder
         migrateOldDownloads()
+        // Scan Downloads/SuvMusic folder for any manually added files
+        scanDownloadsFolder()
+    }
+
+    /**
+     * Scan Downloads/SuvMusic folder for audio files that aren't tracked yet.
+     * This allows users to manually add songs to the folder.
+     */
+    private fun scanDownloadsFolder() {
+        try {
+            val folder = getPublicDownloadsFolder()
+            if (!folder.exists()) return
+            
+            val audioFiles = folder.listFiles { file ->
+                file.isFile && file.extension.lowercase() in listOf("m4a", "mp3", "aac", "flac", "wav", "ogg", "opus")
+            } ?: return
+            
+            if (audioFiles.isEmpty()) return
+            
+            val currentSongs = _downloadedSongs.value.toMutableList()
+            var hasNewSongs = false
+            
+            for (file in audioFiles) {
+                // Check if already tracked by URI
+                val fileUri = file.toUri()
+                val isTracked = currentSongs.any { song ->
+                    song.localUri?.path == file.absolutePath || 
+                    song.localUri == fileUri
+                }
+                
+                if (!isTracked) {
+                    // Parse filename: "Title - Artist.m4a" format
+                    val nameWithoutExt = file.nameWithoutExtension
+                    val parts = nameWithoutExt.split(" - ", limit = 2)
+                    val title = parts.getOrElse(0) { nameWithoutExt }.trim()
+                    val artist = parts.getOrElse(1) { "Unknown Artist" }.trim()
+                    
+                    val song = Song(
+                        id = "local_${file.name.hashCode()}",
+                        title = title,
+                        artist = artist,
+                        album = "Downloads",
+                        duration = 0L, // We don't have duration info for manually added files
+                        thumbnailUrl = null,
+                        source = SongSource.DOWNLOADED,
+                        streamUrl = null,
+                        localUri = fileUri
+                    )
+                    
+                    currentSongs.add(song)
+                    hasNewSongs = true
+                    Log.d(TAG, "Found untracked file: ${file.name}")
+                }
+            }
+            
+            if (hasNewSongs) {
+                _downloadedSongs.value = currentSongs
+                saveDownloads()
+                Log.d(TAG, "Added ${currentSongs.size - _downloadedSongs.value.size} untracked files to downloads")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error scanning downloads folder", e)
+        }
     }
 
     /**
@@ -369,5 +432,23 @@ class DownloadRepository @Inject constructor(
     
     fun isDownloading(songId: String): Boolean {
         return _downloadingIds.value.contains(songId)
+    }
+    
+    /**
+     * Rescan Downloads/SuvMusic folder for new files.
+     * Call this when entering the Library screen to pick up manually added files.
+     */
+    fun refreshDownloads() {
+        loadDownloads()
+        scanDownloadsFolder()
+    }
+    
+    /**
+     * Get download count and total duration info.
+     */
+    fun getDownloadInfo(): Pair<Int, Long> {
+        val songs = _downloadedSongs.value
+        val totalDuration = songs.sumOf { it.duration }
+        return Pair(songs.size, totalDuration)
     }
 }
