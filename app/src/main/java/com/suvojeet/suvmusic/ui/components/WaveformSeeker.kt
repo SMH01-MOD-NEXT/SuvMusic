@@ -68,8 +68,15 @@ fun WaveformSeeker(
         List(60) { Random.nextFloat() * 0.6f + 0.4f }
     }
     
-    var isDragging by remember { mutableFloatStateOf(0f) }
-    var currentProgress by remember(progress) { mutableFloatStateOf(progress) }
+    var isDragging by remember { androidx.compose.runtime.mutableStateOf(false) }
+    var currentProgress by remember { mutableFloatStateOf(progress) }
+    
+    // Update currentProgress from external progress only when NOT dragging
+    androidx.compose.runtime.LaunchedEffect(progress) {
+        if (!isDragging) {
+            currentProgress = progress
+        }
+    }
     
     Box(
         modifier = modifier
@@ -85,10 +92,10 @@ fun WaveformSeeker(
             }
             .pointerInput(Unit) {
                 detectHorizontalDragGestures(
-                    onDragStart = { isDragging = 1f },
+                    onDragStart = { isDragging = true },
                     onDragEnd = { 
-                        isDragging = 0f
                         onSeek(currentProgress)
+                        isDragging = false
                     },
                     onHorizontalDrag = { change, _ ->
                         val newProgress = (change.position.x / size.width).coerceIn(0f, 1f)
@@ -148,7 +155,7 @@ fun WaveformSeeker(
             }
             
             // Draw progress indicator (glowing dot)
-            val indicatorRadius = if (isDragging > 0) 12.dp.toPx() else 8.dp.toPx()
+            val indicatorRadius = if (isDragging) 12.dp.toPx() else 8.dp.toPx()
             
             // Glow effect
             drawCircle(
@@ -207,7 +214,15 @@ fun WaveLineSeeker(
         label = "phase"
     )
     
-    var currentProgress by remember(progress) { mutableFloatStateOf(progress) }
+    var isDragging by remember { androidx.compose.runtime.mutableStateOf(false) }
+    var currentProgress by remember { mutableFloatStateOf(progress) }
+    
+    // Update currentProgress from external progress only when NOT dragging
+    androidx.compose.runtime.LaunchedEffect(progress) {
+        if (!isDragging) {
+            currentProgress = progress
+        }
+    }
     
     Box(
         modifier = modifier
@@ -222,11 +237,17 @@ fun WaveLineSeeker(
                 }
             }
             .pointerInput(Unit) {
-                detectHorizontalDragGestures { change, _ ->
-                    val newProgress = (change.position.x / size.width).coerceIn(0f, 1f)
-                    currentProgress = newProgress
-                    onSeek(newProgress)
-                }
+                detectHorizontalDragGestures(
+                    onDragStart = { isDragging = true },
+                    onDragEnd = { 
+                        onSeek(currentProgress)
+                        isDragging = false
+                    },
+                    onHorizontalDrag = { change, _ ->
+                        val newProgress = (change.position.x / size.width).coerceIn(0f, 1f)
+                        currentProgress = newProgress
+                    }
+                )
             }
     ) {
         Canvas(modifier = Modifier.matchParentSize()) {
