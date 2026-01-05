@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -24,6 +25,12 @@ class PlayerViewModel @Inject constructor(
 ) : ViewModel() {
     
     val playerState: StateFlow<PlayerState> = musicPlayer.playerState
+    
+    private val _lyricsState = kotlinx.coroutines.flow.MutableStateFlow<com.suvojeet.suvmusic.data.model.Lyrics?>(null)
+    val lyricsState: StateFlow<com.suvojeet.suvmusic.data.model.Lyrics?> = _lyricsState.asStateFlow()
+    
+    private val _isFetchingLyrics = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val isFetchingLyrics: StateFlow<Boolean> = _isFetchingLyrics.asStateFlow()
     
     init {
         observeCurrentSong()
@@ -38,6 +45,9 @@ class PlayerViewModel @Inject constructor(
                     if (song != null) {
                         checkLikeStatus(song)
                         checkDownloadStatus(song)
+                        fetchLyrics(song.id)
+                    } else {
+                        _lyricsState.value = null
                     }
                 }
         }
@@ -141,6 +151,20 @@ class PlayerViewModel @Inject constructor(
             } else {
                 musicPlayer.updateDownloadState(DownloadState.FAILED)
             }
+        }
+    }
+    
+
+    
+    private fun fetchLyrics(videoId: String) {
+        viewModelScope.launch {
+            _isFetchingLyrics.value = true
+            _lyricsState.value = null
+            
+            val lyrics = youTubeRepository.getLyrics(videoId)
+            _lyricsState.value = lyrics
+            
+            _isFetchingLyrics.value = false
         }
     }
     

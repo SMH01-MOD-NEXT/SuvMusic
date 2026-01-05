@@ -98,6 +98,8 @@ fun SuvMusicApp() {
     val navController = rememberNavController()
     val playerViewModel: PlayerViewModel = hiltViewModel()
     val playerState by playerViewModel.playerState.collectAsState()
+    val lyrics by playerViewModel.lyricsState.collectAsState()
+    val isFetchingLyrics by playerViewModel.isFetchingLyrics.collectAsState()
     
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -174,7 +176,9 @@ fun SuvMusicApp() {
                 onLikeCurrentSong = { playerViewModel.likeCurrentSong() },
                 onShuffleToggle = { playerViewModel.toggleShuffle() },
                 onRepeatToggle = { playerViewModel.toggleRepeat() },
-                onToggleAutoplay = { playerViewModel.toggleAutoplay() }
+                onToggleAutoplay = { playerViewModel.toggleAutoplay() },
+                lyrics = lyrics,
+                isFetchingLyrics = isFetchingLyrics
             )
         }
     }

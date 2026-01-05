@@ -80,6 +80,7 @@ import com.suvojeet.suvmusic.data.model.DownloadState
 import com.suvojeet.suvmusic.data.model.PlayerState
 import com.suvojeet.suvmusic.data.model.RepeatMode
 import com.suvojeet.suvmusic.data.model.Song
+import com.suvojeet.suvmusic.data.model.Lyrics
 import com.suvojeet.suvmusic.ui.components.AddToPlaylistSheet
 import com.suvojeet.suvmusic.ui.components.CreatePlaylistDialog
 import com.suvojeet.suvmusic.ui.components.DominantColors
@@ -112,6 +113,8 @@ fun PlayerScreen(
     onRepeatToggle: () -> Unit,
     onToggleAutoplay: () -> Unit,
     onPlayFromQueue: (Int) -> Unit = {},
+    lyrics: Lyrics? = null,
+    isFetchingLyrics: Boolean = false,
     playlistViewModel: PlaylistManagementViewModel = hiltViewModel()
 ) {
 
@@ -140,6 +143,7 @@ fun PlayerScreen(
     
     // UI States
     var showQueue by remember { mutableStateOf(false) }
+    var showLyrics by remember { mutableStateOf(false) }
     var showActionsSheet by remember { mutableStateOf(false) }
     var showCreditsSheet by remember { mutableStateOf(false) }
     
@@ -247,7 +251,7 @@ fun PlayerScreen(
                 
                 // Bottom Actions
                 BottomActions(
-                    onLyricsClick = { /* TODO */ },
+                    onLyricsClick = { showLyrics = true },
                     onCastClick = { /* TODO */ },
                     onQueueClick = { showQueue = true },
                     dominantColors = dominantColors
@@ -283,6 +287,21 @@ fun PlayerScreen(
             )
         }
         
+        // Lyrics View
+        AnimatedVisibility(
+            visible = showLyrics,
+            enter = slideInVertically { it },
+            exit = slideOutVertically { it }
+        ) {
+            LyricsScreen(
+                lyrics = lyrics,
+                isFetching = isFetchingLyrics,
+                currentTime = playerState.currentPosition,
+                artworkUrl = highResThumbnail,
+                onClose = { showLyrics = false }
+            )
+        }
+
         // Song Actions Bottom Sheet
         if (song != null) {
             SongActionsSheet(

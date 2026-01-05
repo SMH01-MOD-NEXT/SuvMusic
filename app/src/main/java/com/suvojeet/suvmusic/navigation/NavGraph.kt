@@ -41,6 +41,8 @@ fun NavGraph(
     onShuffleToggle: () -> Unit,
     onRepeatToggle: () -> Unit,
     onToggleAutoplay: () -> Unit,
+    lyrics: com.suvojeet.suvmusic.data.model.Lyrics?,
+    isFetchingLyrics: Boolean,
     modifier: Modifier = Modifier
 ) {
     NavHost(
@@ -163,7 +165,9 @@ fun NavGraph(
                     if (playerState.queue.isNotEmpty() && index in playerState.queue.indices) {
                         onPlaySong(playerState.queue, index)
                     }
-                }
+                },
+                lyrics = lyrics,
+                isFetchingLyrics = isFetchingLyrics
             )
         }
         
