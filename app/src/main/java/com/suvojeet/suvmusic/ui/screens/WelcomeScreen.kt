@@ -228,19 +228,7 @@ fun WelcomeScreen(
             // Allow skipping from earlier pages too? Maybe just a small "Skip" at top right or bottom?
             // Let's stick to user request flow: "welcpme screen ko multiple steps mein kr next next kr paye"
             // Usually "Skip" is an alternative to the whole flow. 
-            if (pagerState.currentPage < 3) {
-                 TextButton(
-                    onClick = {
-                        viewModel.setOnboardingCompleted()
-                        onSkipClick()
-                    },
-                ) {
-                    Text(
-                        text = "Skip",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                    )
-                }
-            }
+
         }
     }
 }
