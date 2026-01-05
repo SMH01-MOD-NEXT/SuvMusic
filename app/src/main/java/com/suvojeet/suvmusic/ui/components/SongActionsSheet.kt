@@ -51,12 +51,9 @@ fun SongActionsSheet(
     song: Song,
     isVisible: Boolean,
     onDismiss: () -> Unit,
-    onPinSong: () -> Unit = {},
     onDownload: () -> Unit = {},
-    onDeleteFromLibrary: () -> Unit = {},
     onAddToPlaylist: () -> Unit = {},
     onViewCredits: () -> Unit = {},
-    onCreateStation: () -> Unit = {},
     onSleepTimer: () -> Unit = {},
     onToggleFavorite: () -> Unit = {}
 ) {
@@ -146,26 +143,14 @@ fun SongActionsSheet(
                 
                 Spacer(modifier = Modifier.height(8.dp))
                 
-                // Action items
-                ActionItem(
-                    icon = Icons.Default.PushPin,
-                    title = "Pin Song",
-                    onClick = { onPinSong(); onDismiss() }
-                )
-                
+
                 ActionItem(
                     icon = Icons.Default.Download,
                     title = "Download",
                     onClick = { onDownload(); onDismiss() }
                 )
                 
-                ActionItem(
-                    icon = Icons.Default.Delete,
-                    title = "Delete from Library",
-                    iconTint = MaterialTheme.colorScheme.error,
-                    onClick = { onDeleteFromLibrary(); onDismiss() }
-                )
-                
+
                 ActionItem(
                     icon = Icons.Default.PlaylistAdd,
                     title = "Add to a Playlist...",
@@ -184,13 +169,7 @@ fun SongActionsSheet(
                     onClick = { onViewCredits(); onDismiss() }
                 )
                 
-                ActionItem(
-                    icon = Icons.Default.Radio,
-                    title = "Create Station",
-                    iconTint = MaterialTheme.colorScheme.primary,
-                    onClick = { onCreateStation(); onDismiss() }
-                )
-                
+
                 ActionItem(
                     icon = Icons.Default.Nightlight,
                     title = "Sleep Timer",

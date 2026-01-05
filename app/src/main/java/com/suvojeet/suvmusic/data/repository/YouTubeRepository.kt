@@ -502,6 +502,9 @@ class YouTubeRepository @Inject constructor(
             val cookies = sessionManager.getCookies() ?: return@withContext false
             val authHeader = YouTubeAuthUtils.getAuthorizationHeader(cookies) ?: ""
             
+            // Strip "VL" prefix if present, as edit_playlist expects the raw playlist ID
+            val realPlaylistId = if (playlistId.startsWith("VL")) playlistId.substring(2) else playlistId
+            
             val jsonBody = JSONObject().apply {
                 put("context", JSONObject().apply {
                     put("client", JSONObject().apply {
@@ -511,7 +514,7 @@ class YouTubeRepository @Inject constructor(
                         put("gl", "US")
                     })
                 })
-                put("playlistId", playlistId)
+                put("playlistId", realPlaylistId)
                 put("actions", JSONArray().apply {
                     put(JSONObject().apply {
                         put("action", "ACTION_ADD_VIDEO")
