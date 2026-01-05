@@ -77,6 +77,9 @@ fun NavGraph(
                             thumbnailUrl = playlist.thumbnailUrl
                         ).route
                     )
+                },
+                onAlbumClick = { albumId ->
+                    navController.navigate(Destination.Album(albumId).route)
                 }
             )
         }

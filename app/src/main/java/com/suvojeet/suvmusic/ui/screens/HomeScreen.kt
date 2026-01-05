@@ -35,6 +35,7 @@ import java.util.Calendar
 fun HomeScreen(
     onSongClick: (List<Song>, Int) -> Unit,
     onPlaylistClick: (PlaylistDisplayItem) -> Unit,
+    onAlbumClick: (String) -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -91,7 +92,7 @@ fun HomeScreen(
                                 horizontalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
                                 items(section.items) { item ->
-                                    HomeItemCard(item, onSongClick, onPlaylistClick, sectionItems = section.items)
+                                    HomeItemCard(item, onSongClick, onPlaylistClick, onAlbumClick, sectionItems = section.items)
                                 }
                             }
                         } else {
@@ -100,7 +101,7 @@ fun HomeScreen(
                                 horizontalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
                                 items(section.items) { item ->
-                                    HomeItemCard(item, onSongClick, onPlaylistClick, sectionItems = section.items)
+                                    HomeItemCard(item, onSongClick, onPlaylistClick, onAlbumClick, sectionItems = section.items)
                                 }
                             }
                         }
@@ -116,6 +117,7 @@ private fun HomeItemCard(
     item: HomeItem,
     onSongClick: (List<Song>, Int) -> Unit,
     onPlaylistClick: (PlaylistDisplayItem) -> Unit,
+    onAlbumClick: (String) -> Unit,
     sectionItems: List<HomeItem>
 ) {
     when (item) {
@@ -146,14 +148,8 @@ private fun HomeItemCard(
                     uploaderName = item.album.artist,
                     thumbnailUrl = item.album.thumbnailUrl
                 ),
-                onClick = { /* Handle Album Click - treating as playlist for now if navigation supports it */ 
-                    onPlaylistClick(PlaylistDisplayItem(
-                        id = item.album.id,
-                        name = item.album.title,
-                        url = "",
-                        uploaderName = item.album.artist,
-                        thumbnailUrl = item.album.thumbnailUrl
-                    ))
+                onClick = { 
+                    onAlbumClick(item.album.id)
                 }
             )
         }

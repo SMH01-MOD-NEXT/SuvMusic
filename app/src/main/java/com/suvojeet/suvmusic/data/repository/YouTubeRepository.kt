@@ -932,10 +932,16 @@ class YouTubeRepository @Inject constructor(
          val root = JSONObject(json)
          // Header
          val header = root.optJSONObject("header")?.optJSONObject("musicDetailHeaderRenderer")
+             ?: root.optJSONObject("header")?.optJSONObject("musicResponsiveHeaderRenderer")
+         
          val title = getRunText(header?.optJSONObject("title")) ?: "Unknown Album"
-         val subtitle = getRunText(header?.optJSONObject("subtitle")) // Artist • Year • ...
+         val subtitle = getRunText(header?.optJSONObject("subtitle")) 
+             ?: getRunText(header?.optJSONObject("straplineTextOne")) // Artist • Year • ...
+             
          val description = getRunText(header?.optJSONObject("description"))
-         val thumbnailUrl = extractThumbnail(header?.optJSONObject("thumbnail"))
+             ?: getRunText(header?.optJSONObject("secondSubtitle"))
+             
+         val thumbnailUrl = extractHeaderThumbnail(header)
          
          val songs = parseSongsFromInternalJson(json)
          
