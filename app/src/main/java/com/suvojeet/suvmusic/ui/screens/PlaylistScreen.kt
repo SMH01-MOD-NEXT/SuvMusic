@@ -85,6 +85,10 @@ fun PlaylistScreen(
         derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 100 }
     }
 
+    // Dialog states
+    var showCreateDialog by remember { mutableStateOf(false) }
+    var showRenameDialog by remember { mutableStateOf(false) }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -144,6 +148,10 @@ fun PlaylistScreen(
                 itemsIndexed(playlist.songs) { index, song ->
                     SongListItem(
                         song = song,
+                        isEditable = uiState.isEditable,
+                        onReorder = { fromIndex, toIndex -> viewModel.reorderSong(fromIndex, toIndex) },
+                        index = index,
+                        totalSongs = playlist.songs.size,
                         onClick = { onSongClick(playlist.songs, index) }
                     )
                 }
@@ -153,7 +161,36 @@ fun PlaylistScreen(
             TopBar(
                 title = playlist.title,
                 isScrolled = isScrolled,
-                onBackClick = onBackClick
+                isEditable = uiState.isEditable,
+                onBackClick = onBackClick,
+                onCreatePlaylist = { showCreateDialog = true },
+                onRenamePlaylist = { showRenameDialog = true }
+            )
+        }
+
+        // Dialogs
+        if (showCreateDialog) {
+            com.suvojeet.suvmusic.ui.components.CreatePlaylistDialog(
+                isVisible = showCreateDialog,
+                isCreating = uiState.isCreating,
+                onDismiss = { showCreateDialog = false },
+                onCreate = { title, desc, isPrivate ->
+                    viewModel.createPlaylist(title, desc, isPrivate)
+                    showCreateDialog = false
+                }
+            )
+        }
+        
+        if (showRenameDialog && playlist != null) {
+            com.suvojeet.suvmusic.ui.components.RenamePlaylistDialog(
+                isVisible = showRenameDialog,
+                currentName = playlist.title,
+                isRenaming = uiState.isRenaming,
+                onDismiss = { showRenameDialog = false },
+                onRename = { newName ->
+                    viewModel.renamePlaylist(newName)
+                    showRenameDialog = false
+                }
             )
         }
     }
@@ -163,8 +200,13 @@ fun PlaylistScreen(
 private fun TopBar(
     title: String,
     isScrolled: Boolean,
-    onBackClick: () -> Unit
+    isEditable: Boolean,
+    onBackClick: () -> Unit,
+    onCreatePlaylist: (() -> Unit)? = null,
+    onRenamePlaylist: (() -> Unit)? = null
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -204,26 +246,39 @@ private fun TopBar(
         }
         
         // Action buttons
-        IconButton(onClick = { }) {
-            Icon(
-                imageVector = Icons.Default.PersonAdd,
-                contentDescription = "Share",
-                tint = Color.White
-            )
-        }
-        IconButton(onClick = { }) {
-            Icon(
-                imageVector = Icons.Default.Download,
-                contentDescription = "Download",
-                tint = Color.White
-            )
-        }
-        IconButton(onClick = { }) {
-            Icon(
-                imageVector = Icons.Default.MoreVert,
-                contentDescription = "More",
-                tint = Color.White
-            )
+   
+        // Menu
+        Box {
+            IconButton(onClick = { showMenu = true }) {
+                Icon(
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = "More",
+                    tint = Color.White
+                )
+            }
+            androidx.compose.material3.DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false }
+            ) {
+                if (onCreatePlaylist != null) {
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text("Create new playlist") },
+                        onClick = {
+                            showMenu = false
+                            onCreatePlaylist()
+                        }
+                    )
+                }
+                if (isEditable && onRenamePlaylist != null) {
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text("Rename playlist") },
+                        onClick = {
+                            showMenu = false
+                            onRenamePlaylist()
+                        }
+                    )
+                }
+            }
         }
     }
 }
@@ -357,8 +412,14 @@ private fun PlaylistHeader(
 @Composable
 private fun SongListItem(
     song: Song,
+    isEditable: Boolean = false,
+    onReorder: ((from: Int, to: Int) -> Unit)? = null,
+    index: Int = 0,
+    totalSongs: Int = 0,
     onClick: () -> Unit
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -408,12 +469,48 @@ private fun SongListItem(
         }
         
         // More Options
-        IconButton(onClick = { }) {
-            Icon(
-                imageVector = Icons.Default.MoreVert,
-                contentDescription = "More options",
-                tint = Color.White.copy(alpha = 0.7f)
-            )
+        if (isEditable) {
+            Box {
+                IconButton(onClick = { showMenu = true }) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "More options",
+                        tint = Color.White.copy(alpha = 0.7f)
+                    )
+                }
+                
+                androidx.compose.material3.DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false }
+                ) {
+                    if (index > 0) {
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text("Move Up") },
+                            onClick = {
+                                showMenu = false
+                                onReorder?.invoke(index, index - 1)
+                            }
+                        )
+                    }
+                    if (index < totalSongs - 1) {
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text("Move Down") },
+                            onClick = {
+                                showMenu = false
+                                onReorder?.invoke(index, index + 1)
+                            }
+                        )
+                    }
+                }
+            }
+        } else {
+             IconButton(onClick = { }) {
+                Icon(
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = "More options",
+                    tint = Color.White.copy(alpha = 0.7f)
+                )
+            }
         }
     }
 }

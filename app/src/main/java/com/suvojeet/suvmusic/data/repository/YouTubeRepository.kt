@@ -542,6 +542,125 @@ class YouTubeRepository @Inject constructor(
     }
 
     /**
+     * Rename a playlist.
+     * @param playlistId The ID of the playlist
+     * @param newTitle The new title
+     * @param newDescription The new description (optional)
+     * @return True if successful
+     */
+    suspend fun renamePlaylist(playlistId: String, newTitle: String, newDescription: String? = null): Boolean = withContext(Dispatchers.IO) {
+        try {
+            if (!sessionManager.isLoggedIn()) return@withContext false
+            
+            val cookies = sessionManager.getCookies() ?: return@withContext false
+            val authHeader = YouTubeAuthUtils.getAuthorizationHeader(cookies) ?: ""
+            
+            val realPlaylistId = if (playlistId.startsWith("VL")) playlistId.substring(2) else playlistId
+            
+            val jsonBody = JSONObject().apply {
+                put("context", JSONObject().apply {
+                    put("client", JSONObject().apply {
+                        put("clientName", "WEB_REMIX")
+                        put("clientVersion", "1.20230102.01.00")
+                        put("hl", "en")
+                        put("gl", "US")
+                    })
+                })
+                put("playlistId", realPlaylistId)
+                put("actions", JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("action", "ACTION_SET_PLAYLIST_NAME")
+                        put("playlistName", newTitle)
+                    })
+                    if (newDescription != null) {
+                        put(JSONObject().apply {
+                            put("action", "ACTION_SET_PLAYLIST_DESCRIPTION")
+                            put("playlistDescription", newDescription)
+                        })
+                    }
+                })
+            }
+            
+            val request = okhttp3.Request.Builder()
+                .url("https://music.youtube.com/youtubei/v1/browse/edit_playlist")
+                .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
+                .addHeader("Cookie", cookies)
+                .addHeader("Authorization", authHeader)
+                .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                .addHeader("Origin", "https://music.youtube.com")
+                .addHeader("X-Goog-AuthUser", "0")
+                .build()
+            
+            val response = okHttpClient.newCall(request).execute()
+            response.isSuccessful
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    /**
+     * Move a song within a playlist.
+     * @param playlistId The ID of the playlist
+     * @param setVideoId The unique ID of the song instance in the playlist
+     * @param predecessorSetVideoId The setVideoId of the song that should come BEFORE the moved song. 
+     *                              If moving to the top, pass null or specific sentinel if required. 
+     *                              (Note: YT Music API usually moves 'movedSetVideoId' to follow 'predecessorSetVideoId')
+     * @return True if successful
+     */
+    suspend fun moveSongInPlaylist(
+        playlistId: String, 
+        setVideoId: String, 
+        predecessorSetVideoId: String?
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            if (!sessionManager.isLoggedIn()) return@withContext false
+            
+            val cookies = sessionManager.getCookies() ?: return@withContext false
+            val authHeader = YouTubeAuthUtils.getAuthorizationHeader(cookies) ?: ""
+            
+            val realPlaylistId = if (playlistId.startsWith("VL")) playlistId.substring(2) else playlistId
+            
+            val jsonBody = JSONObject().apply {
+                put("context", JSONObject().apply {
+                    put("client", JSONObject().apply {
+                        put("clientName", "WEB_REMIX")
+                        put("clientVersion", "1.20230102.01.00")
+                        put("hl", "en")
+                        put("gl", "US")
+                    })
+                })
+                put("playlistId", realPlaylistId)
+                put("actions", JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("action", "ACTION_MOVE_VIDEO_AFTER")
+                        put("setVideoId", setVideoId)
+                        if (predecessorSetVideoId != null) {
+                            put("movedSetVideoIdPredecessor", predecessorSetVideoId)
+                        }
+                    })
+                })
+            }
+            
+            val request = okhttp3.Request.Builder()
+                .url("https://music.youtube.com/youtubei/v1/browse/edit_playlist")
+                .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
+                .addHeader("Cookie", cookies)
+                .addHeader("Authorization", authHeader)
+                .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                .addHeader("Origin", "https://music.youtube.com")
+                .addHeader("X-Goog-AuthUser", "0")
+                .build()
+            
+            val response = okHttpClient.newCall(request).execute()
+            response.isSuccessful
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    /**
      * Get user's playlists for adding songs to.
      * Returns only user-created playlists, not auto-generated ones.
      */
@@ -830,6 +949,7 @@ class YouTubeRepository @Inject constructor(
                         val title = extractTitle(item)
                         val artist = extractArtist(item)
                         val thumbnailUrl = extractThumbnail(item)
+                        val setVideoId = item.optJSONObject("playlistItemData")?.optString("videoId")
                         
                         Song.fromYouTube(
                             videoId = videoId,
@@ -837,7 +957,8 @@ class YouTubeRepository @Inject constructor(
                             artist = artist,
                             album = "",
                             duration = 0L,
-                            thumbnailUrl = thumbnailUrl
+                            thumbnailUrl = thumbnailUrl,
+                            setVideoId = setVideoId
                         )?.let { songs.add(it) }
                     }
                 } catch (e: Exception) { }

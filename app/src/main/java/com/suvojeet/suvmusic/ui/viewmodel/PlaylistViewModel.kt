@@ -18,8 +18,14 @@ import javax.inject.Inject
 data class PlaylistUiState(
     val playlist: Playlist? = null,
     val isLoading: Boolean = false,
-    val error: String? = null
-)
+    val error: String? = null,
+    val isEditable: Boolean = false,
+    val isRenaming: Boolean = false,
+    val isCreating: Boolean = false
+) {
+    val isUserPlaylist: Boolean
+        get() = isEditable // Alias for clarity
+}
 
 @HiltViewModel
 class PlaylistViewModel @Inject constructor(
@@ -58,6 +64,7 @@ class PlaylistViewModel @Inject constructor(
     }
 
     private fun loadPlaylist() {
+        checkEditable()
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             try {
@@ -82,6 +89,66 @@ class PlaylistViewModel @Inject constructor(
                         isLoading = false
                     )
                 }
+            }
+        }
+    }
+
+
+    private fun checkEditable() {
+        viewModelScope.launch {
+            val userPlaylists = youTubeRepository.getUserEditablePlaylists()
+            val isEditable = userPlaylists.any { it.id == playlistId } || playlistId.startsWith("PL") 
+            
+            _uiState.update { it.copy(isEditable = isEditable || playlistId == "LM") }
+        }
+    }
+
+    fun renamePlaylist(newName: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isRenaming = true) }
+            val success = youTubeRepository.renamePlaylist(playlistId, newName)
+            if (success) {
+                // Refresh
+                loadPlaylist()
+            }
+            _uiState.update { it.copy(isRenaming = false) }
+        }
+    }
+    
+    fun createPlaylist(title: String, description: String, isPrivate: Boolean) {
+        viewModelScope.launch {
+             _uiState.update { it.copy(isCreating = true) }
+             val privacyStatus = if (isPrivate) "PRIVATE" else "PUBLIC"
+             youTubeRepository.createPlaylist(title, description, privacyStatus)
+             _uiState.update { it.copy(isCreating = false) }
+        }
+    }
+
+    fun reorderSong(fromIndex: Int, toIndex: Int) {
+        val currentPlaylist = _uiState.value.playlist ?: return
+        val songs = currentPlaylist.songs.toMutableList()
+        
+        // Optimistic update
+        val movedSong = songs.removeAt(fromIndex)
+        songs.add(toIndex, movedSong)
+        
+        _uiState.update { 
+            it.copy(playlist = currentPlaylist.copy(songs = songs))
+        }
+        
+        viewModelScope.launch {
+            val setVideoId = movedSong.setVideoId
+            
+            if (setVideoId != null) {
+                // Determine predecessor
+                // if toIndex == 0, predecessor is null (move to top)
+                // else predecessor is the song at toIndex - 1 (in the NEW list)
+                val predecessorId = if (toIndex > 0) songs[toIndex - 1].setVideoId else null
+                
+                youTubeRepository.moveSongInPlaylist(playlistId, setVideoId, predecessorId)
+            } else {
+                // Revert if we can't move (no setVideoId)
+                loadPlaylist()
             }
         }
     }

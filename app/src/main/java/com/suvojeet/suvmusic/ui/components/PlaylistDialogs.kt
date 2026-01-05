@@ -352,3 +352,71 @@ fun CreatePlaylistDialog(
         )
     }
 }
+
+/**
+ * Dialog to rename a playlist.
+ */
+@Composable
+fun RenamePlaylistDialog(
+    isVisible: Boolean,
+    currentName: String,
+    isRenaming: Boolean,
+    onDismiss: () -> Unit,
+    onRename: (newName: String) -> Unit
+) {
+    if (isVisible) {
+        var title by remember(currentName) { mutableStateOf(currentName) }
+        
+        AlertDialog(
+            onDismissRequest = { if (!isRenaming) onDismiss() },
+            title = {
+                Text(
+                    text = "Rename Playlist",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = { title = it },
+                        label = { Text("Playlist name") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isRenaming
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { 
+                        if (title.isNotBlank() && title != currentName) {
+                            onRename(title)
+                        } else {
+                            onDismiss()
+                        }
+                    },
+                    enabled = title.isNotBlank() && !isRenaming
+                ) {
+                    if (isRenaming) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+                    Text(if (isRenaming) "Renaming..." else "Rename")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = onDismiss,
+                    enabled = !isRenaming
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
