@@ -1091,7 +1091,7 @@ class YouTubeRepository @Inject constructor(
                             title = title,
                             artist = artist,
                             album = "",
-                            duration = 0L,
+                            duration = extractDuration(item),
                             thumbnailUrl = thumbnailUrl,
                             setVideoId = setVideoId
                         )?.let { songs.add(it) }
@@ -1169,7 +1169,7 @@ class YouTubeRepository @Inject constructor(
                              title = extractTitle(item),
                              artist = extractArtist(item),
                              album = "",
-                             duration = 0L,
+                             duration = extractDuration(item),
                              thumbnailUrl = extractThumbnail(item)
                          )?.let { songs.add(it) }
                      }
@@ -1313,8 +1313,8 @@ class YouTubeRepository @Inject constructor(
                     videoId = videoId,
                     title = title,
                     artist = artist,
-                    album = "", // Hard to get album from here reliably without parsing more flex columns
-                    duration = 0L, // Duration often not available in simple home view or needs parsing
+                    album = "",
+                    duration = extractDuration(responsiveItem),
                     thumbnailUrl = thumbnail
                 )
                 return song?.let { com.suvojeet.suvmusic.data.model.HomeItem.SongItem(it) }
@@ -1371,7 +1371,7 @@ class YouTubeRepository @Inject constructor(
                     title = title,
                     artist = subtitle,
                     album = "",
-                    duration = 0L,
+                    duration = extractDuration(twoRowItem),
                     thumbnailUrl = thumbnail
                 )
                 return song?.let { com.suvojeet.suvmusic.data.model.HomeItem.SongItem(it) }
@@ -1450,6 +1450,78 @@ class YouTubeRepository @Inject constructor(
             ?: item.optJSONArray("thumbnails") // For header thumbnail
         
         return thumbnails?.let { it.optJSONObject(it.length() - 1)?.optString("url") }
+    }
+    
+    private fun extractDuration(item: JSONObject): Long {
+        // Try fixedColumns (most common for list items)
+        val fixedColumns = item.optJSONArray("fixedColumns")
+        if (fixedColumns != null) {
+            for (i in 0 until fixedColumns.length()) {
+                val col = fixedColumns.optJSONObject(i)
+                    ?.optJSONObject("musicResponsiveListItemFixedColumnRenderer")
+                val text = getRunText(col?.optJSONObject("text"))
+                if (text != null) {
+                    val duration = parseDurationText(text)
+                    if (duration > 0) return duration
+                }
+            }
+        }
+        
+        // Try overlay for two-row items
+        val overlayText = item.optJSONObject("overlay")
+            ?.optJSONObject("musicItemThumbnailOverlayRenderer")
+            ?.optJSONObject("content")
+            ?.optJSONObject("musicPlayButtonRenderer")
+            ?.optJSONObject("accessibilityPlayData")
+            ?.optJSONObject("accessibilityData")
+            ?.optString("label")
+        if (overlayText != null) {
+            // Try to parse duration from accessibility text like "Play Song Name - 3 minutes, 45 seconds"
+            val durationMatch = Regex("(\\d+)\\s*minutes?,?\\s*(\\d+)?\\s*seconds?").find(overlayText)
+            if (durationMatch != null) {
+                val minutes = durationMatch.groupValues[1].toLongOrNull() ?: 0L
+                val seconds = durationMatch.groupValues.getOrNull(2)?.toLongOrNull() ?: 0L
+                return (minutes * 60 + seconds) * 1000L
+            }
+        }
+        
+        // Try subtitle runs for duration text
+        val subtitleRuns = item.optJSONObject("subtitle")?.optJSONArray("runs")
+        if (subtitleRuns != null) {
+            for (i in 0 until subtitleRuns.length()) {
+                val text = subtitleRuns.optJSONObject(i)?.optString("text") ?: continue
+                val duration = parseDurationText(text)
+                if (duration > 0) return duration
+            }
+        }
+        
+        return 0L
+    }
+    
+    private fun parseDurationText(text: String): Long {
+        // Handle formats like "3:45", "1:23:45", "45"
+        val parts = text.trim().split(":")
+        return when (parts.size) {
+            3 -> {
+                // H:MM:SS
+                val hours = parts[0].toLongOrNull() ?: return 0L
+                val minutes = parts[1].toLongOrNull() ?: return 0L
+                val seconds = parts[2].toLongOrNull() ?: return 0L
+                (hours * 3600 + minutes * 60 + seconds) * 1000L
+            }
+            2 -> {
+                // M:SS
+                val minutes = parts[0].toLongOrNull() ?: return 0L
+                val seconds = parts[1].toLongOrNull() ?: return 0L
+                (minutes * 60 + seconds) * 1000L
+            }
+            1 -> {
+                // Just seconds
+                val seconds = parts[0].toLongOrNull() ?: return 0L
+                seconds * 1000L
+            }
+            else -> 0L
+        }
     }
 
     private fun extractVideoId(url: String): String {
