@@ -210,78 +210,65 @@ fun SectionHeaderSkeleton(
 /**
  * Home screen loading skeleton
  */
+/**
+ * Home card skeleton (160dp width to match HomeItemCard)
+ */
+@Composable
+fun HomeCardSkeleton() {
+    Column(
+        modifier = Modifier.width(160.dp)
+    ) {
+        // Thumbnail
+        Box(
+            modifier = Modifier
+                .size(160.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(shimmerBrush())
+        )
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        // Title
+        ShimmerBox(width = 140.dp, height = 16.dp)
+        
+        Spacer(modifier = Modifier.height(4.dp))
+        
+        // Subtitle
+        ShimmerBox(width = 100.dp, height = 14.dp)
+    }
+}
+
 @Composable
 fun HomeLoadingSkeleton() {
     Column(
-        modifier = Modifier.padding(top = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(28.dp)
     ) {
-        // Header skeleton (greeting + avatar)
+        // Greeting Header
         Row(
-            modifier = Modifier.padding(horizontal = 20.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // Avatar
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(shimmerBrush())
-            )
-            // Greeting text
-            ShimmerBox(width = 140.dp, height = 28.dp)
+            ShimmerBox(width = 200.dp, height = 32.dp)
         }
         
-        // Quick Picks grid skeleton (2 columns x 3 rows)
-        Column(
-            modifier = Modifier.padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            repeat(3) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+        // Simulate 3 sections
+        repeat(3) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                // Section Title
+                SectionHeaderSkeleton(modifier = Modifier.padding(horizontal = 16.dp))
+                
+                // Horizontal List
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    userScrollEnabled = false
                 ) {
-                    repeat(2) {
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(56.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(shimmerBrush())
-                        )
+                    items(4) {
+                        HomeCardSkeleton()
                     }
-                }
-            }
-        }
-        
-        // Mixed for You section
-        Column {
-            SectionHeaderSkeleton(modifier = Modifier.padding(horizontal = 20.dp))
-            Spacer(modifier = Modifier.height(12.dp))
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                userScrollEnabled = false
-            ) {
-                items(4) {
-                    PlaylistCardSkeleton()
-                }
-            }
-        }
-        
-        // Listen Again section
-        Column {
-            SectionHeaderSkeleton(modifier = Modifier.padding(horizontal = 20.dp))
-            Spacer(modifier = Modifier.height(12.dp))
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                userScrollEnabled = false
-            ) {
-                items(5) {
-                    CompactMusicCardSkeleton()
                 }
             }
         }
