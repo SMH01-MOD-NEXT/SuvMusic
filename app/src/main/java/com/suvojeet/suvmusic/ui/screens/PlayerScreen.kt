@@ -555,30 +555,6 @@ private fun TimeLabelsWithQuality(
             color = dominantColors.onBackground.copy(alpha = 0.7f)
         )
         
-        // Quality Badge
-        Surface(
-            color = dominantColors.onBackground.copy(alpha = 0.15f),
-            shape = RoundedCornerShape(4.dp)
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.MusicNote,
-                    contentDescription = null,
-                    modifier = Modifier.size(12.dp),
-                    tint = dominantColors.onBackground.copy(alpha = 0.8f)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "Lossless",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = dominantColors.onBackground.copy(alpha = 0.8f)
-                )
-            }
-        }
-        
         Text(
             text = "-${formatDuration(duration - currentPosition)}",
             style = MaterialTheme.typography.labelMedium,
