@@ -12,6 +12,7 @@ sealed class Destination(val route: String) {
     data object YouTubeLogin : Destination("youtube_login")
     data object About : Destination("about")
     data object Downloads : Destination("downloads")
+    data object Welcome : Destination("welcome")
     
     data class Playlist(
         val playlistId: String,

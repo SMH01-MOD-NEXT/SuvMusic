@@ -35,6 +35,7 @@ class SessionManager @Inject constructor(
         private val AUTOMIX_KEY = booleanPreferencesKey("automix")
         private val CROSSFADE_DURATION_KEY = intPreferencesKey("crossfade_duration")
         private val DOWNLOAD_QUALITY_KEY = stringPreferencesKey("download_quality")
+        private val ONBOARDING_COMPLETED_KEY = booleanPreferencesKey("onboarding_completed")
     }
     
     // --- Cookies ---
@@ -144,6 +145,18 @@ class SessionManager @Inject constructor(
     suspend fun setDownloadQuality(quality: DownloadQuality) {
         context.dataStore.edit { preferences ->
             preferences[DOWNLOAD_QUALITY_KEY] = quality.name
+        }
+    }
+
+    // --- Onboarding ---
+
+    fun isOnboardingCompleted(): Boolean = runBlocking {
+        context.dataStore.data.first()[ONBOARDING_COMPLETED_KEY] ?: false
+    }
+
+    suspend fun setOnboardingCompleted(completed: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[ONBOARDING_COMPLETED_KEY] = completed
         }
     }
 }

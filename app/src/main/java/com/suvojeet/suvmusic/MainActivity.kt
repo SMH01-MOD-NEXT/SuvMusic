@@ -184,7 +184,8 @@ fun SuvMusicApp() {
                     onRepeatToggle = { playerViewModel.toggleRepeat() },
                     onToggleAutoplay = { playerViewModel.toggleAutoplay() },
                     lyrics = lyrics,
-                    isFetchingLyrics = isFetchingLyrics
+                    isFetchingLyrics = isFetchingLyrics,
+                    startDestination = if (sessionManager.isOnboardingCompleted()) Destination.Home.route else Destination.Welcome.route
                 )
             }
         }

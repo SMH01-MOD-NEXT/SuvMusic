@@ -21,6 +21,7 @@ import com.suvojeet.suvmusic.ui.screens.PlayerScreen
 import com.suvojeet.suvmusic.ui.screens.PlaylistScreen
 import com.suvojeet.suvmusic.ui.screens.SearchScreen
 import com.suvojeet.suvmusic.ui.screens.SettingsScreen
+import com.suvojeet.suvmusic.ui.screens.WelcomeScreen
 import com.suvojeet.suvmusic.ui.screens.YouTubeLoginScreen
 
 /**
@@ -43,11 +44,12 @@ fun NavGraph(
     onToggleAutoplay: () -> Unit,
     lyrics: com.suvojeet.suvmusic.data.model.Lyrics?,
     isFetchingLyrics: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    startDestination: String = Destination.Home.route
 ) {
     NavHost(
         navController = navController,
-        startDestination = Destination.Home.route,
+        startDestination = startDestination,
         modifier = modifier,
         enterTransition = {
             fadeIn(animationSpec = tween(300)) + slideIntoContainer(
@@ -179,6 +181,23 @@ fun NavGraph(
                 },
                 onBack = {
                     navController.popBackStack()
+                }
+            )
+        }
+
+        composable(Destination.Welcome.route) {
+            WelcomeScreen(
+                onLoginClick = {
+                    // Navigate to login, and clear back stack so user can't go back to welcome
+                    navController.navigate(Destination.YouTubeLogin.route) {
+                        popUpTo(Destination.Welcome.route) { inclusive = true }
+                    }
+                },
+                onSkipClick = {
+                    // Navigate to home, and clear back stack
+                    navController.navigate(Destination.Home.route) {
+                        popUpTo(Destination.Welcome.route) { inclusive = true }
+                    }
                 }
             )
         }
