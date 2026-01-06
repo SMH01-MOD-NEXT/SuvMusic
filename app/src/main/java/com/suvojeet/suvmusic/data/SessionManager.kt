@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.suvojeet.suvmusic.data.model.AudioQuality
 import com.suvojeet.suvmusic.data.model.DownloadQuality
+import com.suvojeet.suvmusic.data.model.ThemeMode
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -36,6 +37,8 @@ class SessionManager @Inject constructor(
         private val CROSSFADE_DURATION_KEY = intPreferencesKey("crossfade_duration")
         private val DOWNLOAD_QUALITY_KEY = stringPreferencesKey("download_quality")
         private val ONBOARDING_COMPLETED_KEY = booleanPreferencesKey("onboarding_completed")
+        private val THEME_MODE_KEY = stringPreferencesKey("theme_mode")
+        private val DYNAMIC_COLOR_KEY = booleanPreferencesKey("dynamic_color")
     }
     
     // --- Cookies ---
@@ -157,6 +160,43 @@ class SessionManager @Inject constructor(
     suspend fun setOnboardingCompleted(completed: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[ONBOARDING_COMPLETED_KEY] = completed
+        }
+    }
+    
+    // --- Theme Mode ---
+    
+    fun getThemeMode(): ThemeMode = runBlocking {
+        val modeName = context.dataStore.data.first()[THEME_MODE_KEY]
+        modeName?.let { 
+            try { ThemeMode.valueOf(it) } catch (e: Exception) { ThemeMode.SYSTEM }
+        } ?: ThemeMode.SYSTEM
+    }
+    
+    val themeModeFlow: Flow<ThemeMode> = context.dataStore.data.map { preferences ->
+        preferences[THEME_MODE_KEY]?.let {
+            try { ThemeMode.valueOf(it) } catch (e: Exception) { ThemeMode.SYSTEM }
+        } ?: ThemeMode.SYSTEM
+    }
+    
+    suspend fun setThemeMode(mode: ThemeMode) {
+        context.dataStore.edit { preferences ->
+            preferences[THEME_MODE_KEY] = mode.name
+        }
+    }
+    
+    // --- Dynamic Color ---
+    
+    fun isDynamicColorEnabled(): Boolean = runBlocking {
+        context.dataStore.data.first()[DYNAMIC_COLOR_KEY] ?: true
+    }
+    
+    val dynamicColorFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[DYNAMIC_COLOR_KEY] ?: true
+    }
+    
+    suspend fun setDynamicColor(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[DYNAMIC_COLOR_KEY] = enabled
         }
     }
 }

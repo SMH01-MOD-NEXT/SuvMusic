@@ -59,6 +59,7 @@ import coil.compose.AsyncImage
 import com.suvojeet.suvmusic.R
 import com.suvojeet.suvmusic.data.model.AudioQuality
 import com.suvojeet.suvmusic.data.model.DownloadQuality
+import com.suvojeet.suvmusic.data.model.ThemeMode
 import com.suvojeet.suvmusic.ui.viewmodel.SettingsViewModel
 import kotlinx.coroutines.launch
 import androidx.compose.material3.Slider
@@ -78,9 +79,11 @@ fun SettingsScreen(
     val uiState by viewModel.uiState.collectAsState()
     var showQualitySheet by remember { mutableStateOf(false) }
     var showDownloadQualitySheet by remember { mutableStateOf(false) }
+    var showThemeModeSheet by remember { mutableStateOf(false) }
     var showSignOutDialog by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
     val downloadSheetState = rememberModalBottomSheetState()
+    val themeModeSheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
     
     Column(
@@ -309,6 +312,23 @@ fun SettingsScreen(
         // Appearance Section
         SectionTitle("Appearance")
         
+        // Theme Mode
+        ListItem(
+            headlineContent = { Text("Theme") },
+            supportingContent = { Text(uiState.themeMode.label) },
+            leadingContent = {
+                Icon(
+                    imageVector = Icons.Default.DarkMode,
+                    contentDescription = null
+                )
+            },
+            modifier = Modifier.clickable { showThemeModeSheet = true },
+            colors = ListItemDefaults.colors(
+                containerColor = Color.Transparent
+            )
+        )
+        
+        // Dynamic Theme
         ListItem(
             headlineContent = { Text("Dynamic Theme") },
             supportingContent = { Text("Use system colors (Android 12+)") },
@@ -473,6 +493,49 @@ fun SettingsScreen(
                         )
                         Spacer(modifier = Modifier.width(16.dp))
                         Text(text = quality.label)
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(32.dp))
+            }
+        }
+    }
+    
+    // Theme Mode Bottom Sheet
+    if (showThemeModeSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showThemeModeSheet = false },
+            sheetState = themeModeSheetState
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    text = "Theme",
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                
+                ThemeMode.entries.forEach { mode ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                viewModel.setThemeMode(mode)
+                                scope.launch {
+                                    themeModeSheetState.hide()
+                                    showThemeModeSheet = false
+                                }
+                            }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = uiState.themeMode == mode,
+                            onClick = null
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text(text = mode.label)
                     }
                 }
                 

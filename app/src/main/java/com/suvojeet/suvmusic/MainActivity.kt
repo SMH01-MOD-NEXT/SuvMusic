@@ -29,6 +29,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.suvojeet.suvmusic.data.SessionManager
 import com.suvojeet.suvmusic.data.model.Song
+import com.suvojeet.suvmusic.data.model.ThemeMode
 import com.suvojeet.suvmusic.navigation.Destination
 import com.suvojeet.suvmusic.navigation.NavGraph
 import com.suvojeet.suvmusic.ui.components.ExpressiveBottomNav
@@ -36,6 +37,7 @@ import com.suvojeet.suvmusic.ui.components.MiniPlayer
 import com.suvojeet.suvmusic.ui.theme.SuvMusicTheme
 import com.suvojeet.suvmusic.ui.viewmodel.PlayerViewModel
 import dagger.hilt.android.AndroidEntryPoint
+import androidx.compose.foundation.isSystemInDarkTheme
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -53,7 +55,18 @@ class MainActivity : ComponentActivity() {
         requestPermissions()
         
         setContent {
-            SuvMusicTheme {
+            val sessionManager = remember { SessionManager(this) }
+            val themeMode by sessionManager.themeModeFlow.collectAsState(initial = ThemeMode.SYSTEM)
+            val dynamicColor by sessionManager.dynamicColorFlow.collectAsState(initial = true)
+            val systemDarkTheme = isSystemInDarkTheme()
+            
+            val darkTheme = when (themeMode) {
+                ThemeMode.DARK -> true
+                ThemeMode.LIGHT -> false
+                ThemeMode.SYSTEM -> systemDarkTheme
+            }
+            
+            SuvMusicTheme(darkTheme = darkTheme, dynamicColor = dynamicColor) {
                 SuvMusicApp()
             }
         }

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.suvojeet.suvmusic.data.SessionManager
 import com.suvojeet.suvmusic.data.model.AudioQuality
 import com.suvojeet.suvmusic.data.model.DownloadQuality
+import com.suvojeet.suvmusic.data.model.ThemeMode
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,6 +19,7 @@ data class SettingsUiState(
     val userAvatarUrl: String? = null,
     val audioQuality: AudioQuality = AudioQuality.HIGH,
     val downloadQuality: DownloadQuality = DownloadQuality.HIGH,
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val dynamicColorEnabled: Boolean = true,
     val gaplessPlaybackEnabled: Boolean = true,
     val automixEnabled: Boolean = true,
@@ -49,6 +51,8 @@ class SettingsViewModel @Inject constructor(
                 userAvatarUrl = sessionManager.getUserAvatar(),
                 audioQuality = sessionManager.getAudioQuality(),
                 downloadQuality = sessionManager.getDownloadQuality(),
+                themeMode = sessionManager.getThemeMode(),
+                dynamicColorEnabled = sessionManager.isDynamicColorEnabled(),
                 gaplessPlaybackEnabled = sessionManager.isGaplessPlaybackEnabled(),
                 automixEnabled = sessionManager.isAutomixEnabled(),
                 crossfadeDuration = sessionManager.getCrossfadeDuration()
@@ -71,7 +75,17 @@ class SettingsViewModel @Inject constructor(
     }
     
     fun setDynamicColor(enabled: Boolean) {
-        _uiState.update { it.copy(dynamicColorEnabled = enabled) }
+        viewModelScope.launch {
+            sessionManager.setDynamicColor(enabled)
+            _uiState.update { it.copy(dynamicColorEnabled = enabled) }
+        }
+    }
+    
+    fun setThemeMode(mode: ThemeMode) {
+        viewModelScope.launch {
+            sessionManager.setThemeMode(mode)
+            _uiState.update { it.copy(themeMode = mode) }
+        }
     }
     
     fun setGaplessPlayback(enabled: Boolean) {
