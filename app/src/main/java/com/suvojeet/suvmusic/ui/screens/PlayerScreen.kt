@@ -91,7 +91,10 @@ import com.suvojeet.suvmusic.ui.components.SongActionsSheet
 import com.suvojeet.suvmusic.ui.components.SongCreditsSheet
 import com.suvojeet.suvmusic.ui.components.WaveformSeeker
 import com.suvojeet.suvmusic.ui.components.rememberDominantColors
+import com.suvojeet.suvmusic.ui.components.SleepTimerSheet
 import com.suvojeet.suvmusic.ui.viewmodel.PlaylistManagementViewModel
+import com.suvojeet.suvmusic.player.SleepTimerManager
+import com.suvojeet.suvmusic.player.SleepTimerOption
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.runtime.collectAsState
 import android.widget.Toast
@@ -117,6 +120,10 @@ fun PlayerScreen(
     onPlayFromQueue: (Int) -> Unit = {},
     lyrics: Lyrics? = null,
     isFetchingLyrics: Boolean = false,
+    // Sleep timer
+    sleepTimerOption: SleepTimerOption = SleepTimerOption.OFF,
+    sleepTimerRemainingMs: Long? = null,
+    onSetSleepTimer: (SleepTimerOption) -> Unit = {},
     playlistViewModel: PlaylistManagementViewModel = hiltViewModel()
 ) {
 
@@ -148,6 +155,7 @@ fun PlayerScreen(
     var showLyrics by remember { mutableStateOf(false) }
     var showActionsSheet by remember { mutableStateOf(false) }
     var showCreditsSheet by remember { mutableStateOf(false) }
+    var showSleepTimerSheet by remember { mutableStateOf(false) }
     
     // High-res thumbnail
     val highResThumbnail = getHighResThumbnail(song?.thumbnailUrl)
@@ -323,6 +331,10 @@ fun PlayerScreen(
                 onAddToPlaylist = {
                     showActionsSheet = false
                     playlistViewModel.showAddToPlaylistSheet(song)
+                },
+                onSleepTimer = {
+                    showActionsSheet = false
+                    showSleepTimerSheet = true
                 }
             )
             
@@ -358,6 +370,20 @@ fun PlayerScreen(
                 onCreate = { title, description, isPrivate ->
                     playlistViewModel.createPlaylist(title, description, isPrivate)
                 }
+            )
+            
+            // Sleep Timer Sheet
+            SleepTimerSheet(
+                isVisible = showSleepTimerSheet,
+                currentOption = sleepTimerOption,
+                remainingTimeFormatted = sleepTimerRemainingMs?.let {
+                    val minutes = it / 1000 / 60
+                    val seconds = (it / 1000) % 60
+                    String.format("%d:%02d", minutes, seconds)
+                },
+                onSelectOption = onSetSleepTimer,
+                onDismiss = { showSleepTimerSheet = false },
+                accentColor = dominantColors.accent
             )
         }
     }

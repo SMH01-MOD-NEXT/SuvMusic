@@ -128,6 +128,10 @@ fun SuvMusicApp(initialDeepLink: String? = null) {
     val lyrics by playerViewModel.lyricsState.collectAsState()
     val isFetchingLyrics by playerViewModel.isFetchingLyrics.collectAsState()
     
+    // Sleep Timer
+    val sleepTimerOption by playerViewModel.sleepTimerOption.collectAsState()
+    val sleepTimerRemainingMs by playerViewModel.sleepTimerRemainingMs.collectAsState()
+    
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     
@@ -226,6 +230,9 @@ fun SuvMusicApp(initialDeepLink: String? = null) {
                     onToggleAutoplay = { playerViewModel.toggleAutoplay() },
                     lyrics = lyrics,
                     isFetchingLyrics = isFetchingLyrics,
+                    sleepTimerOption = sleepTimerOption,
+                    sleepTimerRemainingMs = sleepTimerRemainingMs,
+                    onSetSleepTimer = { playerViewModel.setSleepTimer(it) },
                     startDestination = if (sessionManager.isOnboardingCompleted()) Destination.Home.route else Destination.Welcome.route
                 )
             }

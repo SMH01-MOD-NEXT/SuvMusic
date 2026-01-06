@@ -44,7 +44,8 @@ import javax.inject.Singleton
 class MusicPlayer @Inject constructor(
     @ApplicationContext private val context: Context,
     private val youTubeRepository: YouTubeRepository,
-    private val sessionManager: SessionManager
+    private val sessionManager: SessionManager,
+    private val sleepTimerManager: SleepTimerManager
 ) {
     
     private val _playerState = MutableStateFlow(PlayerState())
@@ -66,6 +67,11 @@ class MusicPlayer @Inject constructor(
     
     init {
         connectToService()
+        
+        // Setup sleep timer callback
+        sleepTimerManager.setOnTimerFinished {
+            pause()
+        }
     }
     
     private fun connectToService() {
@@ -146,8 +152,11 @@ class MusicPlayer @Inject constructor(
                         return@let
                     }
                     
+                    // Check sleep timer
+                    val timerTriggered = sleepTimerManager.onSongEnded()
+                    
                     scope.launch {
-                        resolveAndPlayCurrentItem(song, index)
+                        resolveAndPlayCurrentItem(song, index, shouldPlay = !timerTriggered)
                     }
                 }
             }
@@ -163,7 +172,7 @@ class MusicPlayer @Inject constructor(
         }
     }
     
-    private suspend fun resolveAndPlayCurrentItem(song: Song, index: Int) {
+    private suspend fun resolveAndPlayCurrentItem(song: Song, index: Int, shouldPlay: Boolean = true) {
         try {
             _playerState.update { it.copy(isLoading = true) }
             
@@ -197,7 +206,9 @@ class MusicPlayer @Inject constructor(
                      if (controller.playbackState == Player.STATE_IDLE || controller.playbackState == Player.STATE_ENDED) {
                          controller.prepare()
                      }
-                     controller.play()
+                     if (shouldPlay) {
+                         controller.play()
+                     }
                 }
             }
         } catch (e: Exception) {

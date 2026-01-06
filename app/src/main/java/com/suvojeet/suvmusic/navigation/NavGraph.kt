@@ -45,6 +45,10 @@ fun NavGraph(
     onToggleAutoplay: () -> Unit,
     lyrics: com.suvojeet.suvmusic.data.model.Lyrics?,
     isFetchingLyrics: Boolean,
+    // Sleep timer
+    sleepTimerOption: com.suvojeet.suvmusic.player.SleepTimerOption = com.suvojeet.suvmusic.player.SleepTimerOption.OFF,
+    sleepTimerRemainingMs: Long? = null,
+    onSetSleepTimer: (com.suvojeet.suvmusic.player.SleepTimerOption) -> Unit = {},
     modifier: Modifier = Modifier,
     startDestination: String = Destination.Home.route
 ) {
@@ -175,7 +179,10 @@ fun NavGraph(
                     }
                 },
                 lyrics = lyrics,
-                isFetchingLyrics = isFetchingLyrics
+                isFetchingLyrics = isFetchingLyrics,
+                sleepTimerOption = sleepTimerOption,
+                sleepTimerRemainingMs = sleepTimerRemainingMs,
+                onSetSleepTimer = onSetSleepTimer
             )
         }
         

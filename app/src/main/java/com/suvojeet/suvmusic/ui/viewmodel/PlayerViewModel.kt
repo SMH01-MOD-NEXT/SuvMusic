@@ -15,13 +15,16 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import com.suvojeet.suvmusic.player.SleepTimerManager
+import com.suvojeet.suvmusic.player.SleepTimerOption
 import javax.inject.Inject
 
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
     private val musicPlayer: MusicPlayer,
     private val downloadRepository: DownloadRepository,
-    private val youTubeRepository: YouTubeRepository
+    private val youTubeRepository: YouTubeRepository,
+    private val sleepTimerManager: SleepTimerManager
 ) : ViewModel() {
     
     val playerState: StateFlow<PlayerState> = musicPlayer.playerState
@@ -31,6 +34,14 @@ class PlayerViewModel @Inject constructor(
     
     private val _isFetchingLyrics = kotlinx.coroutines.flow.MutableStateFlow(false)
     val isFetchingLyrics: StateFlow<Boolean> = _isFetchingLyrics.asStateFlow()
+    
+    // Sleep Timer
+    val sleepTimerOption: StateFlow<SleepTimerOption> = sleepTimerManager.currentOption
+    val sleepTimerRemainingMs: StateFlow<Long?> = sleepTimerManager.remainingTimeMs
+    
+    fun setSleepTimer(option: SleepTimerOption) {
+        sleepTimerManager.startTimer(option)
+    }
     
     init {
         observeCurrentSong()

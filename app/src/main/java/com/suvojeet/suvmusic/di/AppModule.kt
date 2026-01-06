@@ -45,8 +45,9 @@ object AppModule {
     fun provideMusicPlayer(
         @ApplicationContext context: Context,
         youTubeRepository: YouTubeRepository,
-        sessionManager: SessionManager
+        sessionManager: SessionManager,
+        sleepTimerManager: com.suvojeet.suvmusic.player.SleepTimerManager
     ): MusicPlayer {
-        return MusicPlayer(context, youTubeRepository, sessionManager)
+        return MusicPlayer(context, youTubeRepository, sessionManager, sleepTimerManager)
     }
 }
