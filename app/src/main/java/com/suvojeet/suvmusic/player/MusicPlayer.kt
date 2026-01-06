@@ -216,8 +216,11 @@ class MusicPlayer @Inject constructor(
         }
     }
     
+    private var saveCounter = 0
+    
     private fun startPositionUpdates() {
         positionUpdateJob?.cancel()
+        saveCounter = 0
         positionUpdateJob = scope.launch {
             while (true) {
                 mediaController?.let { controller ->
@@ -232,6 +235,13 @@ class MusicPlayer @Inject constructor(
                         )
                     }
                     
+                    // Save playback state every ~5 seconds (20 iterations * 250ms = 5s)
+                    saveCounter++
+                    if (saveCounter >= 20) {
+                        saveCounter = 0
+                        saveCurrentPlaybackState()
+                    }
+                    
                     // Check if we need to preload next song for gapless playback
                     if (sessionManager.isGaplessPlaybackEnabled()) {
                         checkPreloadNextSong(currentPos, duration)
@@ -241,6 +251,44 @@ class MusicPlayer @Inject constructor(
                     checkCrossfade(currentPos, duration)
                 }
                 delay(250) // Check more frequently for smoother crossfade
+            }
+        }
+    }
+    
+    /**
+     * Save current playback state for resume functionality.
+     */
+    private fun saveCurrentPlaybackState() {
+        val state = _playerState.value
+        val currentSong = state.currentSong ?: return
+        val queue = state.queue
+        
+        if (queue.isEmpty()) return
+        
+        scope.launch {
+            try {
+                val queueJson = org.json.JSONArray().apply {
+                    queue.forEach { song ->
+                        put(org.json.JSONObject().apply {
+                            put("id", song.id)
+                            put("title", song.title)
+                            put("artist", song.artist)
+                            put("album", song.album ?: "")
+                            put("thumbnailUrl", song.thumbnailUrl ?: "")
+                            put("duration", song.duration)
+                            put("source", song.source.name)
+                        })
+                    }
+                }.toString()
+                
+                sessionManager.savePlaybackState(
+                    songId = currentSong.id,
+                    position = state.currentPosition,
+                    queueJson = queueJson,
+                    index = state.currentIndex
+                )
+            } catch (e: Exception) {
+                // Silently fail - not critical
             }
         }
     }

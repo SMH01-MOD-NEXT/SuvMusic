@@ -139,6 +139,7 @@ fun SuvMusicApp(initialDeepLink: String? = null) {
     
     // Handle deep link on first composition
     var deepLinkHandled by remember { mutableStateOf(false) }
+    var restoreAttempted by remember { mutableStateOf(false) }
     
     LaunchedEffect(initialDeepLink) {
         if (initialDeepLink != null && !deepLinkHandled) {
@@ -150,6 +151,10 @@ fun SuvMusicApp(initialDeepLink: String? = null) {
                 // Navigate to player screen
                 navController.navigate(Destination.Player.route)
             }
+        } else if (!restoreAttempted && initialDeepLink == null) {
+            // Try to restore last playback if no deep link
+            restoreAttempted = true
+            playerViewModel.restoreLastPlayback()
         }
     }
     

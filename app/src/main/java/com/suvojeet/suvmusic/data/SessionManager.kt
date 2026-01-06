@@ -39,6 +39,11 @@ class SessionManager @Inject constructor(
         private val ONBOARDING_COMPLETED_KEY = booleanPreferencesKey("onboarding_completed")
         private val THEME_MODE_KEY = stringPreferencesKey("theme_mode")
         private val DYNAMIC_COLOR_KEY = booleanPreferencesKey("dynamic_color")
+        // Resume playback
+        private val LAST_SONG_ID_KEY = stringPreferencesKey("last_song_id")
+        private val LAST_POSITION_KEY = androidx.datastore.preferences.core.longPreferencesKey("last_position")
+        private val LAST_QUEUE_KEY = stringPreferencesKey("last_queue")
+        private val LAST_INDEX_KEY = intPreferencesKey("last_index")
     }
     
     // --- Cookies ---
@@ -199,5 +204,57 @@ class SessionManager @Inject constructor(
             preferences[DYNAMIC_COLOR_KEY] = enabled
         }
     }
+    
+    // --- Resume Playback ---
+    
+    /**
+     * Save last playback state for resume functionality.
+     */
+    suspend fun savePlaybackState(songId: String, position: Long, queueJson: String, index: Int) {
+        context.dataStore.edit { preferences ->
+            preferences[LAST_SONG_ID_KEY] = songId
+            preferences[LAST_POSITION_KEY] = position
+            preferences[LAST_QUEUE_KEY] = queueJson
+            preferences[LAST_INDEX_KEY] = index
+        }
+    }
+    
+    /**
+     * Get last saved playback state.
+     * @return Quadruple of (songId, position, queueJson, index) or null if not saved.
+     */
+    fun getLastPlaybackState(): LastPlaybackState? = runBlocking {
+        val prefs = context.dataStore.data.first()
+        val songId = prefs[LAST_SONG_ID_KEY]
+        val position = prefs[LAST_POSITION_KEY]
+        val queueJson = prefs[LAST_QUEUE_KEY]
+        val index = prefs[LAST_INDEX_KEY]
+        
+        if (songId != null && position != null && queueJson != null && index != null) {
+            LastPlaybackState(songId, position, queueJson, index)
+        } else null
+    }
+    
+    /**
+     * Clear saved playback state.
+     */
+    suspend fun clearPlaybackState() {
+        context.dataStore.edit { preferences ->
+            preferences.remove(LAST_SONG_ID_KEY)
+            preferences.remove(LAST_POSITION_KEY)
+            preferences.remove(LAST_QUEUE_KEY)
+            preferences.remove(LAST_INDEX_KEY)
+        }
+    }
 }
+
+/**
+ * Data class for last playback state.
+ */
+data class LastPlaybackState(
+    val songId: String,
+    val position: Long,
+    val queueJson: String,
+    val index: Int
+)
 
