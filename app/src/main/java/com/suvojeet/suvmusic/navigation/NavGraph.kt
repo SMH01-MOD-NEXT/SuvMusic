@@ -293,7 +293,7 @@ fun NavGraph(
         ) {
             com.suvojeet.suvmusic.ui.screens.AlbumScreen(
                 onBackClick = { navController.popBackStack() },
-                onSongClick = { onPlaySong(listOf(it), 0) },
+                onSongClick = { songs, index -> onPlaySong(songs, index) },
                 onPlayAll = { songs ->
                     if (songs.isNotEmpty()) {
                         onPlaySong(songs, 0)

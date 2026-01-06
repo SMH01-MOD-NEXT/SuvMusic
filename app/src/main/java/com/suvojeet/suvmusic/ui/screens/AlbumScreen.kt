@@ -60,7 +60,7 @@ import com.suvojeet.suvmusic.ui.viewmodel.AlbumViewModel
 @Composable
 fun AlbumScreen(
     onBackClick: () -> Unit,
-    onSongClick: (Song) -> Unit,
+    onSongClick: (List<Song>, Int) -> Unit,
     onPlayAll: (List<Song>) -> Unit = {},
     onShufflePlay: (List<Song>) -> Unit = {},
     viewModel: AlbumViewModel = hiltViewModel()
@@ -143,7 +143,7 @@ fun AlbumScreen(
                         AlbumSongItem(
                             song = song,
                             trackNumber = index + 1,
-                            onClick = { onSongClick(song) }
+                            onClick = { onSongClick(album.songs, index) }
                         )
                     }
                 }
