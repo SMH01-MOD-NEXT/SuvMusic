@@ -78,7 +78,7 @@ fun LibraryScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black) // Apple Music dark background
+            .background(MaterialTheme.colorScheme.background)
     ) {
         Column(
             modifier = Modifier
@@ -94,7 +94,7 @@ fun LibraryScreen(
                     fontWeight = FontWeight.Bold,
                     fontSize = 34.sp
                 ),
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.padding(horizontal = 20.dp)
             )
             
@@ -111,7 +111,7 @@ fun LibraryScreen(
                     val isSelected = selectedTab == index
                     Surface(
                         shape = RoundedCornerShape(20.dp),
-                        color = if (isSelected) Color(0xFFFA2D48) else Color(0xFF1C1C1E),
+                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
                         modifier = Modifier.clickable { selectedTab = index }
                     ) {
                         Text(
@@ -119,7 +119,7 @@ fun LibraryScreen(
                             style = MaterialTheme.typography.labelLarge.copy(
                                 fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
                             ),
-                            color = Color.White,
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                         )
                     }
@@ -185,7 +185,7 @@ private fun PlaylistsTab(
                 Text(
                     text = "YOUR PLAYLISTS",
                     style = MaterialTheme.typography.labelMedium,
-                    color = Color.White.copy(alpha = 0.5f),
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
                 )
             }
@@ -204,7 +204,7 @@ private fun PlaylistsTab(
                 Text(
                     text = "No playlists yet.\nCreate one to get started!",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = Color.White.copy(alpha = 0.5f),
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 32.dp)
                 )
             }
@@ -218,7 +218,7 @@ private fun CreatePlaylistCard(
 ) {
     Surface(
         shape = RoundedCornerShape(12.dp),
-        color = Color(0xFF1C1C1E),
+        color = MaterialTheme.colorScheme.surfaceVariant,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
@@ -261,12 +261,12 @@ private fun CreatePlaylistCard(
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.SemiBold
                     ),
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "Create a new playlist",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.5f)
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                 )
             }
         }
@@ -290,7 +290,7 @@ private fun PlaylistListItem(
             modifier = Modifier
                 .size(56.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color(0xFF2C2C2E))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
         ) {
             if (playlist.thumbnailUrl != null) {
                 coil.compose.AsyncImage(
@@ -308,13 +308,13 @@ private fun PlaylistListItem(
             Text(
                 text = playlist.name,
                 style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1
             )
             Text(
                 text = "Playlist",
                 style = MaterialTheme.typography.bodySmall,
-                color = Color.White.copy(alpha = 0.5f)
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
             )
         }
     }
@@ -340,7 +340,7 @@ private fun OfflineTab(
                 Text(
                     text = "No offline songs yet.\nDownload songs or add music to Downloads/SuvMusic folder.",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = Color.White.copy(alpha = 0.5f),
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
                     modifier = Modifier.padding(vertical = 32.dp)
                 )
             }
@@ -363,7 +363,7 @@ private fun OfflineTab(
                 Text(
                     text = "DEVICE FILES",
                     style = MaterialTheme.typography.labelMedium,
-                    color = Color.White.copy(alpha = 0.5f),
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
                     modifier = Modifier.padding(vertical = 8.dp)
                 )
             }
@@ -399,7 +399,7 @@ private fun DownloadedSongsCard(
     
     Surface(
         shape = RoundedCornerShape(12.dp),
-        color = Color(0xFF1C1C1E),
+        color = MaterialTheme.colorScheme.surfaceVariant,
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
@@ -441,7 +441,7 @@ private fun DownloadedSongsCard(
                 Text(
                     text = "Downloaded songs",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Row(
                     verticalAlignment = Alignment.CenterVertically
@@ -449,7 +449,7 @@ private fun DownloadedSongsCard(
                     Icon(
                         imageVector = Icons.Default.CheckCircle,
                         contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.5f),
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                         modifier = Modifier.size(14.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
@@ -460,14 +460,14 @@ private fun DownloadedSongsCard(
                             append("$songCount song${if (songCount != 1) "s" else ""}")
                         },
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.5f)
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                     )
                 }
                 if (durationText.isNotEmpty()) {
                     Text(
                         text = durationText,
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.4f)
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
                     )
                 }
             }
@@ -476,7 +476,7 @@ private fun DownloadedSongsCard(
                 Icon(
                     imageVector = Icons.Default.MoreVert,
                     contentDescription = "More options",
-                    tint = Color.White.copy(alpha = 0.5f)
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                 )
             }
         }
@@ -501,7 +501,7 @@ private fun LikedTab(
                 Text(
                     text = "No liked songs yet.\nLog in to YouTube Music to see your likes.",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = Color.White.copy(alpha = 0.5f),
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
                     modifier = Modifier.padding(vertical = 32.dp)
                 )
             }
