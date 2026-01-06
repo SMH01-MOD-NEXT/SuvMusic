@@ -105,7 +105,10 @@ fun NavGraph(
         
         composable(Destination.Library.route) {
             LibraryScreen(
-                onSongClick = { songs, index -> onPlaySong(songs, index) },
+                onSongClick = { songs, index -> 
+                    onPlaySong(songs, index)
+                    navController.navigate(Destination.Player.route)
+                },
                 onPlaylistClick = { playlist ->
                     navController.navigate(
                         Destination.Playlist(
