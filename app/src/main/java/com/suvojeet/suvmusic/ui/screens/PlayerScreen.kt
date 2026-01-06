@@ -10,6 +10,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -66,6 +67,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -191,12 +193,14 @@ fun PlayerScreen(
                 
                 Spacer(modifier = Modifier.weight(0.5f))
                 
-                // Album Art with shadow
+                // Album Art with shadow - swipeable
                 AlbumArtwork(
                     imageUrl = highResThumbnail,
                     title = song?.title,
                     dominantColors = dominantColors,
-                    isLoading = playerState.isLoading
+                    isLoading = playerState.isLoading,
+                    onSwipeLeft = onNext,
+                    onSwipeRight = onPrevious
                 )
                 
                 Spacer(modifier = Modifier.height(32.dp))
@@ -403,14 +407,61 @@ private fun AlbumArtwork(
     imageUrl: String?,
     title: String?,
     dominantColors: DominantColors,
-    isLoading: Boolean = false
+    isLoading: Boolean = false,
+    onSwipeLeft: () -> Unit = {},
+    onSwipeRight: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    
+    // Track horizontal drag offset
+    var offsetX by remember { mutableStateOf(0f) }
+    val swipeThreshold = 150f // Minimum swipe distance to trigger action
+    
+    // Animate offset when dragging ends
+    val animatedOffsetX by animateFloatAsState(
+        targetValue = offsetX,
+        animationSpec = tween(durationMillis = if (offsetX == 0f) 200 else 0),
+        label = "swipe_offset"
+    )
+    
+    // Calculate scale and rotation based on offset for visual feedback
+    val scale = 1f - (kotlin.math.abs(animatedOffsetX) / 1500f).coerceIn(0f, 0.1f)
+    val rotation = animatedOffsetX / 30f
     
     Box(
         modifier = Modifier
             .fillMaxWidth(0.85f)
             .aspectRatio(1f)
+            .graphicsLayer {
+                translationX = animatedOffsetX
+                scaleX = scale
+                scaleY = scale
+                rotationZ = rotation
+            }
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onDragEnd = {
+                        when {
+                            offsetX < -swipeThreshold -> {
+                                // Swiped left - next song
+                                onSwipeLeft()
+                            }
+                            offsetX > swipeThreshold -> {
+                                // Swiped right - previous song
+                                onSwipeRight()
+                            }
+                        }
+                        // Reset offset
+                        offsetX = 0f
+                    },
+                    onDragCancel = {
+                        offsetX = 0f
+                    },
+                    onHorizontalDrag = { _, dragAmount ->
+                        offsetX += dragAmount
+                    }
+                )
+            }
             .shadow(
                 elevation = 32.dp,
                 shape = RoundedCornerShape(16.dp),
