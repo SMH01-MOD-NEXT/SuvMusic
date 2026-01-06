@@ -189,11 +189,16 @@ class MusicPlayer @Inject constructor(
             
             mediaController?.let { controller ->
                 // Replace current item with resolved stream and play
-                val currentPosition = controller.currentPosition
-                controller.removeMediaItem(index)
-                controller.addMediaItem(index, newMediaItem)
-                controller.seekTo(index, currentPosition)
-                controller.play()
+                if (index < controller.mediaItemCount) {
+                     controller.replaceMediaItem(index, newMediaItem)
+                     // If we are replacing the currently playing item that just started (position ~0),
+                     // we might need to ensure it plays if it was paused or if replace pauses it.
+                     // Usually replaceMediaItem keeps state, but explicit play() checks hurt nothing.
+                     if (controller.playbackState == Player.STATE_IDLE || controller.playbackState == Player.STATE_ENDED) {
+                         controller.prepare()
+                     }
+                     controller.play()
+                }
             }
         } catch (e: Exception) {
             _playerState.update { it.copy(error = e.message, isLoading = false) }
