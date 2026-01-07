@@ -57,8 +57,6 @@ class MusicPlayer @Inject constructor(
     private var mediaController: MediaController? = null
     
     private var positionUpdateJob: Job? = null
-    private var crossfadeJob: Job? = null
-    private var crossfadeAnimator: ValueAnimator? = null
     
     // Preloading state for gapless playback
     private var preloadedNextSongId: String? = null
@@ -246,11 +244,8 @@ class MusicPlayer @Inject constructor(
                     if (sessionManager.isGaplessPlaybackEnabled()) {
                         checkPreloadNextSong(currentPos, duration)
                     }
-                    
-                    // Check if we need to start crossfade
-                    checkCrossfade(currentPos, duration)
                 }
-                delay(250) // Check more frequently for smoother crossfade
+                delay(500)
             }
         }
     }
@@ -380,107 +375,7 @@ class MusicPlayer @Inject constructor(
         }
     }
     
-    private var isCrossfading = false
-    
-    private fun checkCrossfade(currentPosition: Long, duration: Long) {
-        if (isCrossfading || duration <= 0) return
-        
-        val crossfadeDuration = sessionManager.getCrossfadeDuration()
-        if (crossfadeDuration <= 0) return // Crossfade disabled
-        
-        val crossfadeStartMs = duration - (crossfadeDuration * 1000L)
-        
-        // Start crossfade when we reach the crossfade start point
-        if (currentPosition >= crossfadeStartMs && currentPosition < duration - 500) {
-            val state = _playerState.value
-            val nextIndex = state.currentIndex + 1
-            
-            // Only crossfade if there's a next song
-            if (nextIndex in state.queue.indices || state.repeatMode == RepeatMode.ALL) {
-                executeCrossfade(crossfadeDuration)
-            }
-        }
-    }
-    
-    private fun executeCrossfade(durationSeconds: Int) {
-        if (isCrossfading) return
-        isCrossfading = true
-        
-        val durationMs = durationSeconds * 1000L
-        
-        scope.launch {
-            try {
-                // Prepare next song's stream URL in advance
-                val state = _playerState.value
-                var nextIndex = state.currentIndex + 1
-                
-                if (nextIndex >= state.queue.size) {
-                    if (state.repeatMode == RepeatMode.ALL) {
-                        nextIndex = 0
-                    } else {
-                        isCrossfading = false
-                        return@launch
-                    }
-                }
-                
-                val nextSong = state.queue.getOrNull(nextIndex)
-                if (nextSong == null) {
-                    isCrossfading = false
-                    return@launch
-                }
-                
-                // Use preloaded URL if available, otherwise fetch
-                val streamUrl = if (preloadedNextSongId == nextSong.id && preloadedStreamUrl != null) {
-                    preloadedStreamUrl!!
-                } else if (nextSong.source == SongSource.LOCAL || nextSong.source == SongSource.DOWNLOADED) {
-                    nextSong.localUri.toString()
-                } else {
-                    youTubeRepository.getStreamUrl(nextSong.id)
-                }
-                
-                if (streamUrl == null) {
-                    isCrossfading = false
-                    return@launch
-                }
-                
-                // Start fade out animation on current track
-                crossfadeAnimator?.cancel()
-                crossfadeAnimator = ValueAnimator.ofFloat(1f, 0f).apply {
-                    this.duration = durationMs
-                    interpolator = LinearInterpolator()
-                    addUpdateListener { animator ->
-                        val volume = animator.animatedValue as Float
-                        mediaController?.volume = volume
-                    }
-                    start()
-                }
-                
-                // Wait for crossfade duration then switch to next track
-                delay(durationMs - 200) // Switch slightly before fade completes
-                
-                // Reset volume and play next
-                mediaController?.volume = 1f
-                crossfadeAnimator?.cancel()
-                
-                // Trigger next song play
-                playSong(nextSong, state.queue, nextIndex)
-                
-            } catch (e: Exception) {
-                mediaController?.volume = 1f
-            } finally {
-                isCrossfading = false
-            }
-        }
-    }
-    
-    /**
-     * Play a single song.
-     * @param autoPlay If true, playback starts immediately. If false, song is loaded but paused.
-     */
     fun playSong(song: Song, queue: List<Song> = listOf(song), startIndex: Int = 0, autoPlay: Boolean = true) {
-        // Cancel any ongoing crossfade
-        cancelCrossfade()
-        
         // Reset preload state
         preloadedNextSongId = null
         preloadedStreamUrl = null
@@ -501,13 +396,6 @@ class MusicPlayer @Inject constructor(
                 
                 val mediaItems = queue.mapIndexed { index, s -> createMediaItem(s, index == startIndex) }
                 mediaController?.let { controller ->
-                    // Instant switch: stop and clear immediately
-                    controller.stop()
-                    controller.clearMediaItems()
-                    
-                    // Reset volume in case crossfade was in progress
-                    controller.volume = 1f
-                    
                     controller.setMediaItems(mediaItems, startIndex, 0L)
                     controller.prepare()
                     if (autoPlay) {
@@ -520,13 +408,6 @@ class MusicPlayer @Inject constructor(
                 _playerState.update { it.copy(error = e.message, isLoading = false) }
             }
         }
-    }
-    
-    private fun cancelCrossfade() {
-        isCrossfading = false
-        crossfadeJob?.cancel()
-        crossfadeAnimator?.cancel()
-        mediaController?.volume = 1f
     }
     
     private suspend fun createMediaItem(song: Song, resolveStream: Boolean = true): MediaItem {
@@ -686,8 +567,6 @@ class MusicPlayer @Inject constructor(
     
     fun release() {
         positionUpdateJob?.cancel()
-        crossfadeJob?.cancel()
-        crossfadeAnimator?.cancel()
         controllerFuture?.let { MediaController.releaseFuture(it) }
         mediaController = null
     }

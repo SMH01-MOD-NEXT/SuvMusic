@@ -38,7 +38,6 @@ class SessionManager @Inject constructor(
         private val AUDIO_QUALITY_KEY = stringPreferencesKey("audio_quality")
         private val GAPLESS_PLAYBACK_KEY = booleanPreferencesKey("gapless_playback")
         private val AUTOMIX_KEY = booleanPreferencesKey("automix")
-        private val CROSSFADE_DURATION_KEY = intPreferencesKey("crossfade_duration")
         private val DOWNLOAD_QUALITY_KEY = stringPreferencesKey("download_quality")
         private val ONBOARDING_COMPLETED_KEY = booleanPreferencesKey("onboarding_completed")
         private val THEME_MODE_KEY = stringPreferencesKey("theme_mode")
@@ -129,16 +128,6 @@ class SessionManager @Inject constructor(
     suspend fun setAutomix(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[AUTOMIX_KEY] = enabled
-        }
-    }
-    
-    fun getCrossfadeDuration(): Int = runBlocking {
-        context.dataStore.data.first()[CROSSFADE_DURATION_KEY] ?: 0
-    }
-    
-    suspend fun setCrossfadeDuration(seconds: Int) {
-        context.dataStore.edit { preferences ->
-            preferences[CROSSFADE_DURATION_KEY] = seconds
         }
     }
     

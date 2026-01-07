@@ -62,9 +62,7 @@ import com.suvojeet.suvmusic.data.model.DownloadQuality
 import com.suvojeet.suvmusic.data.model.ThemeMode
 import com.suvojeet.suvmusic.ui.viewmodel.SettingsViewModel
 import kotlinx.coroutines.launch
-import androidx.compose.material3.Slider
 import androidx.compose.material.icons.filled.GraphicEq
-import kotlin.math.roundToInt
 
 /**
  * Settings screen with audio quality, theme, and account settings.
@@ -259,53 +257,6 @@ fun SettingsScreen(
                 containerColor = Color.Transparent
             )
         )
-        
-        // Crossfade slider
-        Column(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
-        ) {
-            Text(
-                text = "Crossfade",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = "Adjust the length of fading and overlap in between tracks.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "0 s",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Slider(
-                    value = uiState.crossfadeDuration.toFloat(),
-                    onValueChange = { viewModel.setCrossfadeDuration(it.roundToInt()) },
-                    valueRange = 0f..12f,
-                    steps = 11,
-                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
-                )
-                Text(
-                    text = "12 s",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            if (uiState.crossfadeDuration > 0) {
-                Text(
-                    text = "Current: ${uiState.crossfadeDuration}s",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-            }
-        }
         
         HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
         

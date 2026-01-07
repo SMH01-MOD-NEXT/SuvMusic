@@ -22,8 +22,7 @@ data class SettingsUiState(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val dynamicColorEnabled: Boolean = true,
     val gaplessPlaybackEnabled: Boolean = true,
-    val automixEnabled: Boolean = true,
-    val crossfadeDuration: Int = 0
+    val automixEnabled: Boolean = true
 )
 
 @HiltViewModel
@@ -54,8 +53,7 @@ class SettingsViewModel @Inject constructor(
                 themeMode = sessionManager.getThemeMode(),
                 dynamicColorEnabled = sessionManager.isDynamicColorEnabled(),
                 gaplessPlaybackEnabled = sessionManager.isGaplessPlaybackEnabled(),
-                automixEnabled = sessionManager.isAutomixEnabled(),
-                crossfadeDuration = sessionManager.getCrossfadeDuration()
+                automixEnabled = sessionManager.isAutomixEnabled()
             )
         }
     }
@@ -99,13 +97,6 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             sessionManager.setAutomix(enabled)
             _uiState.update { it.copy(automixEnabled = enabled) }
-        }
-    }
-    
-    fun setCrossfadeDuration(seconds: Int) {
-        viewModelScope.launch {
-            sessionManager.setCrossfadeDuration(seconds)
-            _uiState.update { it.copy(crossfadeDuration = seconds) }
         }
     }
     
