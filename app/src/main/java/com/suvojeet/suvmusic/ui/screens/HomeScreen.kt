@@ -10,6 +10,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,6 +37,7 @@ fun HomeScreen(
     onSongClick: (List<Song>, Int) -> Unit,
     onPlaylistClick: (PlaylistDisplayItem) -> Unit,
     onAlbumClick: (com.suvojeet.suvmusic.data.model.Album) -> Unit,
+    onRecentsClick: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -69,7 +72,8 @@ fun HomeScreen(
                 // Greeting Header
                 item {
                     ProfileHeader(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        onRecentsClick = onRecentsClick
                     )
                 }
                 
@@ -177,12 +181,13 @@ private fun getGreeting(): String {
 
 @Composable
 private fun ProfileHeader(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onRecentsClick: () -> Unit = {}
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
         // Greeting Text
         Text(
@@ -191,6 +196,15 @@ private fun ProfileHeader(
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground
         )
+        
+        // Recents Button
+        IconButton(onClick = onRecentsClick) {
+            Icon(
+                imageVector = Icons.Default.History,
+                contentDescription = "Recents",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 

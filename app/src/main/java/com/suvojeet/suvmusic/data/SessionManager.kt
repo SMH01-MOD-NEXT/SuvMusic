@@ -50,6 +50,10 @@ class SessionManager @Inject constructor(
         // Recent searches
         private val RECENT_SEARCHES_KEY = stringPreferencesKey("recent_searches")
         private const val MAX_RECENT_SEARCHES = 20
+        
+        // Recently Played
+        private val RECENTLY_PLAYED_KEY = stringPreferencesKey("recently_played")
+        private const val MAX_RECENTLY_PLAYED = 50
     }
     
     // --- Cookies ---
@@ -327,6 +331,97 @@ class SessionManager @Inject constructor(
         context.dataStore.edit { preferences ->
             preferences.remove(RECENT_SEARCHES_KEY)
         }
+    }
+    
+    // --- Recently Played ---
+    
+    /**
+     * Get recently played songs as a Flow.
+     */
+    val recentlyPlayedFlow: Flow<List<com.suvojeet.suvmusic.data.model.RecentlyPlayed>> = context.dataStore.data.map { preferences ->
+        parseRecentlyPlayed(preferences[RECENTLY_PLAYED_KEY])
+    }
+    
+    /**
+     * Add a song to recently played.
+     */
+    suspend fun addToRecentlyPlayed(song: Song) {
+        context.dataStore.edit { preferences ->
+            val existing = parseRecentlyPlayed(preferences[RECENTLY_PLAYED_KEY]).toMutableList()
+            
+            // Remove if already exists (will re-add at top)
+            existing.removeAll { it.song.id == song.id }
+            
+            // Add at beginning
+            existing.add(0, com.suvojeet.suvmusic.data.model.RecentlyPlayed(song, System.currentTimeMillis()))
+            
+            // Limit size
+            val limited = existing.take(MAX_RECENTLY_PLAYED)
+            
+            // Serialize
+            preferences[RECENTLY_PLAYED_KEY] = serializeRecentlyPlayed(limited)
+        }
+    }
+    
+    /**
+     * Clear recently played history.
+     */
+    suspend fun clearRecentlyPlayed() {
+        context.dataStore.edit { preferences ->
+            preferences.remove(RECENTLY_PLAYED_KEY)
+        }
+    }
+    
+    private fun parseRecentlyPlayed(json: String?): List<com.suvojeet.suvmusic.data.model.RecentlyPlayed> {
+        if (json.isNullOrBlank()) return emptyList()
+        return try {
+            val array = JSONArray(json)
+            (0 until array.length()).mapNotNull { i ->
+                val obj = array.optJSONObject(i) ?: return@mapNotNull null
+                val songObj = obj.optJSONObject("song") ?: return@mapNotNull null
+                val playedAt = obj.optLong("playedAt", System.currentTimeMillis())
+                
+                val song = Song(
+                    id = songObj.optString("id"),
+                    title = songObj.optString("title"),
+                    artist = songObj.optString("artist"),
+                    album = songObj.optString("album"),
+                    thumbnailUrl = songObj.optString("thumbnailUrl").takeIf { it.isNotBlank() },
+                    duration = songObj.optLong("duration"),
+                    source = try { 
+                        SongSource.valueOf(songObj.optString("source", "YOUTUBE")) 
+                    } catch (e: Exception) { 
+                        SongSource.YOUTUBE 
+                    },
+                    localUri = songObj.optString("localUri").takeIf { it.isNotBlank() }?.let { android.net.Uri.parse(it) }
+                )
+                com.suvojeet.suvmusic.data.model.RecentlyPlayed(song, playedAt)
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+    
+    private fun serializeRecentlyPlayed(list: List<com.suvojeet.suvmusic.data.model.RecentlyPlayed>): String {
+        val array = JSONArray()
+        list.forEach { recent ->
+            val songObj = JSONObject().apply {
+                put("id", recent.song.id)
+                put("title", recent.song.title)
+                put("artist", recent.song.artist)
+                put("album", recent.song.album)
+                put("thumbnailUrl", recent.song.thumbnailUrl ?: "")
+                put("duration", recent.song.duration)
+                put("source", recent.song.source.name)
+                put("localUri", recent.song.localUri?.toString() ?: "")
+            }
+            val obj = JSONObject().apply {
+                put("song", songObj)
+                put("playedAt", recent.playedAt)
+            }
+            array.put(obj)
+        }
+        return array.toString()
     }
 }
 

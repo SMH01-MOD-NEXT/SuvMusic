@@ -21,6 +21,7 @@ import com.suvojeet.suvmusic.ui.screens.LibraryScreen
 import com.suvojeet.suvmusic.ui.screens.PlayerScreen
 import com.suvojeet.suvmusic.ui.screens.PlaybackSettingsScreen
 import com.suvojeet.suvmusic.ui.screens.PlaylistScreen
+import com.suvojeet.suvmusic.ui.screens.RecentsScreen
 import com.suvojeet.suvmusic.ui.screens.SearchScreen
 import com.suvojeet.suvmusic.ui.screens.SettingsScreen
 import com.suvojeet.suvmusic.ui.screens.WelcomeScreen
@@ -99,6 +100,9 @@ fun NavGraph(
                             thumbnailUrl = album.thumbnailUrl
                         ).route
                     )
+                },
+                onRecentsClick = {
+                    navController.navigate(Destination.Recents.route)
                 }
             )
         }
@@ -170,6 +174,14 @@ fun NavGraph(
         
         composable(Destination.AppearanceSettings.route) {
             AppearanceSettingsScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+        
+        composable(Destination.Recents.route) {
+            RecentsScreen(
+                sessionManager = sessionManager,
+                onSongClick = { songs, index -> onPlaySong(songs, index) },
                 onBack = { navController.popBackStack() }
             )
         }
