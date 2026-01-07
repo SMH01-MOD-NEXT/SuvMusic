@@ -41,27 +41,13 @@ jobs:
         KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
-    # - name: Build Release AAB
-    #   run: ./gradlew bundleRelease
-    #   env:
-    #     KEYSTORE_PATH: ${{ github.workspace }}/release-keystore.jks
-    #     KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-    #     KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-    #     KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-
-    - name: Find APK file
-      id: find_apk
-      run: |
-        APK_FILE=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
-        echo "APK_PATH=$APK_FILE" >> $GITHUB_OUTPUT
-        echo "APK_NAME=$(basename $APK_FILE)" >> $GITHUB_OUTPUT
-
-    # - name: Find AAB file
-    #   id: find_aab
-    #   run: |
-    #     AAB_FILE=$(find app/build/outputs/bundle/release -name "*.aab" | head -n 1)
-    #     echo "AAB_PATH=$AAB_FILE" >> $GITHUB_OUTPUT
-    #     echo "AAB_NAME=$(basename $AAB_FILE)" >> $GITHUB_OUTPUT
+    - name: Build Release AAB
+      run: ./gradlew bundleRelease
+      env:
+        KEYSTORE_PATH: ${{ github.workspace }}/release-keystore.jks
+        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
     - name: Extract version name
       id: version
@@ -69,17 +55,27 @@ jobs:
         VERSION=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
         echo "VERSION_NAME=$VERSION" >> $GITHUB_OUTPUT
 
+    - name: Rename APK with version
+      run: |
+        APK_FILE=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+        mv "$APK_FILE" "app/build/outputs/apk/release/SuvMusic-v${{ steps.version.outputs.VERSION_NAME }}.apk"
+
+    - name: Rename AAB with version
+      run: |
+        AAB_FILE=$(find app/build/outputs/bundle/release -name "*.aab" | head -n 1)
+        mv "$AAB_FILE" "app/build/outputs/bundle/release/SuvMusic-v${{ steps.version.outputs.VERSION_NAME }}.aab"
+
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: suvmusic-apk
-        path: ${{ steps.find_apk.outputs.APK_PATH }}
+        name: SuvMusic-v${{ steps.version.outputs.VERSION_NAME }}-apk
+        path: app/build/outputs/apk/release/SuvMusic-v${{ steps.version.outputs.VERSION_NAME }}.apk
 
-    # - name: Upload AAB Artifact
-    #   uses: actions/upload-artifact@v4
-    #   with:
-    #     name: suvmusic-aab
-    #     path: ${{ steps.find_aab.outputs.AAB_PATH }}
+    - name: Upload AAB Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: SuvMusic-v${{ steps.version.outputs.VERSION_NAME }}-aab
+        path: app/build/outputs/bundle/release/SuvMusic-v${{ steps.version.outputs.VERSION_NAME }}.aab
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
@@ -101,8 +97,9 @@ jobs:
           
           ### Downloads:
           - **APK**: Direct install on Android devices
+          - **AAB**: For Play Store distribution
         draft: false
-        prerelease: false
+        prerelease: true
         files: |
-          ${{ steps.find_apk.outputs.APK_PATH }}
-
+          app/build/outputs/apk/release/SuvMusic-v${{ steps.version.outputs.VERSION_NAME }}.apk
+          app/build/outputs/bundle/release/SuvMusic-v${{ steps.version.outputs.VERSION_NAME }}.aab

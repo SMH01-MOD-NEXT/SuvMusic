@@ -3,6 +3,7 @@ package com.suvojeet.suvmusic.di
 import android.content.Context
 import com.suvojeet.suvmusic.data.SessionManager
 import com.suvojeet.suvmusic.data.repository.LocalAudioRepository
+import com.suvojeet.suvmusic.data.repository.UpdateRepository
 import com.suvojeet.suvmusic.data.repository.YouTubeRepository
 import com.suvojeet.suvmusic.player.MusicPlayer
 import dagger.Module
@@ -38,6 +39,14 @@ object AppModule {
         @ApplicationContext context: Context
     ): LocalAudioRepository {
         return LocalAudioRepository(context)
+    }
+    
+    @Provides
+    @Singleton
+    fun provideUpdateRepository(
+        @ApplicationContext context: Context
+    ): UpdateRepository {
+        return UpdateRepository(context)
     }
     
     @Provides

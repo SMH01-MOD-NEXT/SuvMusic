@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
@@ -41,6 +42,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import com.suvojeet.suvmusic.data.model.UpdateState
+import com.suvojeet.suvmusic.ui.components.CheckingUpdateDialog
+import com.suvojeet.suvmusic.ui.components.DownloadProgressDialog
+import com.suvojeet.suvmusic.ui.components.NoUpdateDialog
+import com.suvojeet.suvmusic.ui.components.UpdateAvailableDialog
+import com.suvojeet.suvmusic.ui.components.UpdateErrorDialog
 import com.suvojeet.suvmusic.ui.viewmodel.SettingsViewModel
 
 /**
@@ -188,6 +195,14 @@ fun SettingsScreen(
             onClick = onAboutClick
         )
         
+        // Check for Updates
+        SettingsItem(
+            icon = Icons.Default.SystemUpdate,
+            title = "Check for Updates",
+            subtitle = "Current version: ${uiState.currentVersion}",
+            onClick = { viewModel.checkForUpdates() }
+        )
+        
         Spacer(modifier = Modifier.height(100.dp))
     }
     
@@ -233,6 +248,48 @@ fun SettingsScreen(
                 }
             }
         )
+    }
+    
+    // Update Dialogs
+    when (val updateState = uiState.updateState) {
+        is UpdateState.Checking -> {
+            CheckingUpdateDialog()
+        }
+        is UpdateState.UpdateAvailable -> {
+            UpdateAvailableDialog(
+                update = updateState.update,
+                currentVersion = uiState.currentVersion,
+                onDownload = { 
+                    viewModel.downloadUpdate(
+                        downloadUrl = updateState.update.downloadUrl,
+                        versionName = updateState.update.versionName
+                    )
+                },
+                onDismiss = { viewModel.resetUpdateState() }
+            )
+        }
+        is UpdateState.NoUpdate -> {
+            NoUpdateDialog(
+                currentVersion = uiState.currentVersion,
+                onDismiss = { viewModel.resetUpdateState() }
+            )
+        }
+        is UpdateState.Downloading -> {
+            DownloadProgressDialog(
+                progress = updateState.progress,
+                onCancel = { viewModel.cancelDownload() }
+            )
+        }
+        is UpdateState.Error -> {
+            UpdateErrorDialog(
+                errorMessage = updateState.message,
+                onRetry = { viewModel.checkForUpdates() },
+                onDismiss = { viewModel.resetUpdateState() }
+            )
+        }
+        is UpdateState.Downloaded, is UpdateState.Idle -> {
+            // No dialog needed
+        }
     }
 }
 
