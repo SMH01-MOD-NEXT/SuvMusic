@@ -1056,7 +1056,7 @@ class YouTubeRepository @Inject constructor(
         if (browseId.isNullOrEmpty()) return null
 
         // Subtitle often contains "Author • Song count"
-        val subtitle = extractArtist(item) 
+        val subtitle = extractFullSubtitle(item)
         
         // Simple heuristic for song count and uploader
         val parts = subtitle.split("•").map { it.trim() }
@@ -1605,6 +1605,17 @@ class YouTubeRepository @Inject constructor(
         val endpoints = mutableListOf<JSONObject>()
         findAllObjects(item, "watchEndpoint", endpoints)
         return endpoints.firstOrNull()?.optString("videoId")
+    }
+
+    private fun extractFullSubtitle(item: JSONObject): String {
+        val flexColumns = item.optJSONArray("flexColumns")
+        if (flexColumns != null) {
+            val subtitleFormatted = flexColumns.optJSONObject(1)
+                ?.optJSONObject("musicResponsiveListItemFlexColumnRenderer")
+                ?.optJSONObject("text")
+            return getRunText(subtitleFormatted) ?: ""
+        }
+        return getRunText(item.optJSONObject("subtitle")) ?: ""
     }
     
     private fun extractTitle(item: JSONObject): String {
