@@ -79,17 +79,16 @@ fun AlbumScreen(
             .fillMaxSize()
             .background(Color(0xFF0D0D0D))
     ) {
-        // Blurred background image
+        // Blurred background image - Full screen like Apple Music
         if (album?.thumbnailUrl != null) {
             AsyncImage(
                 model = album.thumbnailUrl,
                 contentDescription = null,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(400.dp)
+                    .fillMaxSize()
                     .blur(100.dp),
                 contentScale = ContentScale.Crop,
-                alpha = 0.5f
+                alpha = 0.4f
             )
         }
         
