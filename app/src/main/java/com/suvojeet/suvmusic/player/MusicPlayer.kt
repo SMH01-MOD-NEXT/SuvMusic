@@ -129,6 +129,13 @@ class MusicPlayer @Inject constructor(
                     )
                 }
                 
+                // Add to recently played
+                if (song != null) {
+                    scope.launch {
+                        sessionManager.addToRecentlyPlayed(song)
+                    }
+                }
+                
                 // If this is an automatic transition (song ended), resolve stream and play
                 if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && song != null) {
                     // Check if current item already has a resolved stream URL (from preloading)

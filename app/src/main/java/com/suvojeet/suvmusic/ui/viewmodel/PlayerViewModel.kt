@@ -115,10 +115,6 @@ class PlayerViewModel @Inject constructor(
     
     fun playSong(song: Song, queue: List<Song> = listOf(song), startIndex: Int = 0) {
         musicPlayer.playSong(song, queue, startIndex)
-        // Add to recently played
-        viewModelScope.launch {
-            sessionManager.addToRecentlyPlayed(song)
-        }
     }
     
     fun play() {
