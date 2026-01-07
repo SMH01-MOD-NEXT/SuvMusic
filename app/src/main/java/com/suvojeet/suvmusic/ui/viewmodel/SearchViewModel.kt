@@ -2,6 +2,7 @@ package com.suvojeet.suvmusic.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.suvojeet.suvmusic.data.SessionManager
 import com.suvojeet.suvmusic.data.model.BrowseCategory
 import com.suvojeet.suvmusic.data.model.Song
 import com.suvojeet.suvmusic.data.repository.LocalAudioRepository
@@ -19,6 +20,11 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+enum class SearchTab {
+    YOUTUBE_MUSIC,
+    YOUR_LIBRARY
+}
+
 data class SearchUiState(
     val query: String = "",
     val filter: String = YouTubeRepository.FILTER_SONGS,
@@ -26,10 +32,13 @@ data class SearchUiState(
     val suggestions: List<String> = emptyList(),
     val browseCategories: List<BrowseCategory> = emptyList(),
     val selectedCategory: BrowseCategory? = null,
+    val recentSearches: List<Song> = emptyList(),
+    val selectedTab: SearchTab = SearchTab.YOUTUBE_MUSIC,
     val showSuggestions: Boolean = false,
     val isLoading: Boolean = false,
     val isCategoriesLoading: Boolean = true,
     val isSuggestionsLoading: Boolean = false,
+    val isSearchActive: Boolean = false,
     val error: String? = null
 )
 
@@ -37,7 +46,8 @@ data class SearchUiState(
 @HiltViewModel
 class SearchViewModel @Inject constructor(
     private val youTubeRepository: YouTubeRepository,
-    private val localAudioRepository: LocalAudioRepository
+    private val localAudioRepository: LocalAudioRepository,
+    private val sessionManager: SessionManager
 ) : ViewModel() {
     
     private val _uiState = MutableStateFlow(SearchUiState())
@@ -51,7 +61,10 @@ class SearchViewModel @Inject constructor(
         // Load browse categories on init
         loadBrowseCategories()
         
-        // Observe query changes for debounced suggestions
+        // Load recent searches
+        loadRecentSearches()
+        
+        // Observe query changes for debounced suggestions and search
         viewModelScope.launch {
             _searchQuery
                 .debounce(300) // 300ms debounce
@@ -59,8 +72,15 @@ class SearchViewModel @Inject constructor(
                 .filter { it.isNotBlank() }
                 .collect { query ->
                     fetchSuggestions(query)
+                    // Auto-search while typing
+                    searchInternal(query)
                 }
         }
+    }
+    
+    private fun loadRecentSearches() {
+        val recentSearches = sessionManager.getRecentSearches()
+        _uiState.update { it.copy(recentSearches = recentSearches) }
     }
     
     private fun loadBrowseCategories() {
@@ -85,7 +105,8 @@ class SearchViewModel @Inject constructor(
             it.copy(
                 selectedCategory = category,
                 query = category.title,
-                showSuggestions = false
+                showSuggestions = false,
+                isSearchActive = true
             )
         }
         
@@ -119,9 +140,13 @@ class SearchViewModel @Inject constructor(
             it.copy(
                 selectedCategory = null,
                 query = "",
-                results = emptyList()
+                results = emptyList(),
+                suggestions = emptyList(),
+                showSuggestions = false,
+                isSearchActive = false
             )
         }
+        _searchQuery.value = ""
     }
     
     fun onQueryChange(query: String) {
@@ -129,21 +154,33 @@ class SearchViewModel @Inject constructor(
             it.copy(
                 query = query,
                 showSuggestions = query.isNotBlank(),
-                selectedCategory = null // Clear category when typing
+                selectedCategory = null,
+                isSearchActive = query.isNotBlank()
             )
         }
         _searchQuery.value = query
         
-        // Clear suggestions if query is empty
+        // Clear suggestions and results if query is empty
         if (query.isBlank()) {
             _uiState.update { 
                 it.copy(
                     suggestions = emptyList(),
                     showSuggestions = false,
-                    results = emptyList()
+                    results = emptyList(),
+                    isSearchActive = false
                 )
             }
         }
+    }
+    
+    fun onSearchFocusChange(focused: Boolean) {
+        if (focused && _uiState.value.query.isBlank()) {
+            _uiState.update { it.copy(isSearchActive = true) }
+        }
+    }
+    
+    fun onBackPressed() {
+        clearCategorySelection()
     }
     
     private fun fetchSuggestions(query: String) {
@@ -185,6 +222,13 @@ class SearchViewModel @Inject constructor(
         }
     }
     
+    fun onTabChange(tab: SearchTab) {
+        _uiState.update { it.copy(selectedTab = tab) }
+        if (_uiState.value.query.isNotBlank()) {
+            search()
+        }
+    }
+    
     fun search() {
         val query = _uiState.value.query
         if (query.isBlank()) return
@@ -192,20 +236,29 @@ class SearchViewModel @Inject constructor(
         // Hide suggestions when searching
         _uiState.update { it.copy(showSuggestions = false) }
         
+        searchInternal(query)
+    }
+    
+    private fun searchInternal(query: String) {
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             
             try {
-                // Search both YouTube and local
-                val youtubeResults = youTubeRepository.search(query, _uiState.value.filter)
-                val localResults = localAudioRepository.searchLocalSongs(query)
+                val currentTab = _uiState.value.selectedTab
                 
-                val combined = localResults + youtubeResults
+                val results = when (currentTab) {
+                    SearchTab.YOUTUBE_MUSIC -> {
+                        youTubeRepository.search(query, _uiState.value.filter)
+                    }
+                    SearchTab.YOUR_LIBRARY -> {
+                        localAudioRepository.searchLocalSongs(query)
+                    }
+                }
                 
                 _uiState.update { 
                     it.copy(
-                        results = combined,
+                        results = results,
                         isLoading = false
                     )
                 }
@@ -219,4 +272,31 @@ class SearchViewModel @Inject constructor(
             }
         }
     }
+    
+    fun addToRecentSearches(song: Song) {
+        viewModelScope.launch {
+            sessionManager.addRecentSearch(song)
+            loadRecentSearches()
+        }
+    }
+    
+    fun clearRecentSearches() {
+        viewModelScope.launch {
+            sessionManager.clearRecentSearches()
+            _uiState.update { it.copy(recentSearches = emptyList()) }
+        }
+    }
+    
+    fun onRecentSearchClick(song: Song) {
+        // Update query to show the song title
+        _uiState.update { 
+            it.copy(
+                query = song.title,
+                isSearchActive = true,
+                showSuggestions = false
+            )
+        }
+        search()
+    }
 }
+

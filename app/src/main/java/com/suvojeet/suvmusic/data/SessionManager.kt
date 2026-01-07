@@ -10,12 +10,16 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.suvojeet.suvmusic.data.model.AudioQuality
 import com.suvojeet.suvmusic.data.model.DownloadQuality
+import com.suvojeet.suvmusic.data.model.Song
+import com.suvojeet.suvmusic.data.model.SongSource
 import com.suvojeet.suvmusic.data.model.ThemeMode
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
+import org.json.JSONArray
+import org.json.JSONObject
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -44,6 +48,9 @@ class SessionManager @Inject constructor(
         private val LAST_POSITION_KEY = androidx.datastore.preferences.core.longPreferencesKey("last_position")
         private val LAST_QUEUE_KEY = stringPreferencesKey("last_queue")
         private val LAST_INDEX_KEY = intPreferencesKey("last_index")
+        // Recent searches
+        private val RECENT_SEARCHES_KEY = stringPreferencesKey("recent_searches")
+        private const val MAX_RECENT_SEARCHES = 20
     }
     
     // --- Cookies ---
@@ -246,6 +253,92 @@ class SessionManager @Inject constructor(
             preferences.remove(LAST_INDEX_KEY)
         }
     }
+    
+    // --- Recent Searches ---
+    
+    /**
+     * Get recent searches list.
+     */
+    fun getRecentSearches(): List<Song> = runBlocking {
+        val json = context.dataStore.data.first()[RECENT_SEARCHES_KEY] ?: return@runBlocking emptyList()
+        parseRecentSearchesJson(json)
+    }
+    
+    val recentSearchesFlow: Flow<List<Song>> = context.dataStore.data.map { preferences ->
+        val json = preferences[RECENT_SEARCHES_KEY] ?: return@map emptyList()
+        parseRecentSearchesJson(json)
+    }
+    
+    private fun parseRecentSearchesJson(json: String): List<Song> {
+        return try {
+            val jsonArray = JSONArray(json)
+            val songs = mutableListOf<Song>()
+            for (i in 0 until jsonArray.length()) {
+                val obj = jsonArray.getJSONObject(i)
+                songs.add(
+                    Song(
+                        id = obj.getString("id"),
+                        title = obj.getString("title"),
+                        artist = obj.getString("artist"),
+                        album = obj.optString("album", ""),
+                        thumbnailUrl = obj.optString("thumbnailUrl", null),
+                        duration = obj.optLong("duration", 0L),
+                        source = try {
+                            SongSource.valueOf(obj.optString("source", "YOUTUBE"))
+                        } catch (e: Exception) {
+                            SongSource.YOUTUBE
+                        }
+                    )
+                )
+            }
+            songs
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+    
+    /**
+     * Add a song to recent searches.
+     */
+    suspend fun addRecentSearch(song: Song) {
+        val currentSearches = getRecentSearches().toMutableList()
+        
+        // Remove if already exists (to move to top)
+        currentSearches.removeAll { it.id == song.id }
+        
+        // Add to beginning
+        currentSearches.add(0, song)
+        
+        // Keep only max items
+        val trimmed = currentSearches.take(MAX_RECENT_SEARCHES)
+        
+        // Save
+        val jsonArray = JSONArray()
+        trimmed.forEach { s ->
+            jsonArray.put(JSONObject().apply {
+                put("id", s.id)
+                put("title", s.title)
+                put("artist", s.artist)
+                put("album", s.album ?: "")
+                put("thumbnailUrl", s.thumbnailUrl ?: "")
+                put("duration", s.duration)
+                put("source", s.source.name)
+            })
+        }
+        
+        context.dataStore.edit { preferences ->
+            preferences[RECENT_SEARCHES_KEY] = jsonArray.toString()
+        }
+    }
+    
+    /**
+     * Clear all recent searches.
+     */
+    suspend fun clearRecentSearches() {
+        context.dataStore.edit { preferences ->
+            preferences.remove(RECENT_SEARCHES_KEY)
+        }
+    }
 }
 
 /**
@@ -257,4 +350,5 @@ data class LastPlaybackState(
     val queueJson: String,
     val index: Int
 )
+
 

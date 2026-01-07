@@ -21,52 +21,66 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.NorthWest
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
 import com.suvojeet.suvmusic.data.model.Song
-import com.suvojeet.suvmusic.data.repository.YouTubeRepository
-import com.suvojeet.suvmusic.ui.components.AnimatedSearchBar
-import com.suvojeet.suvmusic.ui.components.BrowseCategoryCard
-import com.suvojeet.suvmusic.ui.components.MusicCard
+import com.suvojeet.suvmusic.ui.viewmodel.SearchTab
 import com.suvojeet.suvmusic.ui.viewmodel.SearchViewModel
 
 /**
- * Apple Music-inspired search screen with browse categories and search.
+ * Apple Music-inspired search screen with recent searches, suggestions, and inline results.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(
     onSongClick: (List<Song>, Int) -> Unit,
     viewModel: SearchViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val focusManager = LocalFocusManager.current
+    var isSearchFocused by remember { mutableStateOf(false) }
+    
+    // Accent color for the app (works in both light/dark)
+    val accentColor = MaterialTheme.colorScheme.primary
     
     Box(
         modifier = Modifier
@@ -75,173 +89,279 @@ fun SearchScreen(
             .statusBarsPadding()
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 20.dp)
+            modifier = Modifier.fillMaxSize()
         ) {
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // Header with back button when category is selected
+            // Search Header with Back Button and Search Bar
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (uiState.selectedCategory != null || uiState.results.isNotEmpty()) {
+                // Back button (visible when search is active or has results)
+                AnimatedVisibility(
+                    visible = uiState.isSearchActive || uiState.query.isNotBlank()
+                ) {
                     IconButton(
-                        onClick = { viewModel.clearCategorySelection() },
-                        modifier = Modifier.size(40.dp)
+                        onClick = { 
+                            viewModel.onBackPressed()
+                            focusManager.clearFocus()
+                        }
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
-                            tint = MaterialTheme.colorScheme.onSurface
+                            tint = accentColor
                         )
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
                 }
                 
-                Text(
-                    text = uiState.selectedCategory?.title ?: "Search",
-                    style = MaterialTheme.typography.headlineLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // Search Bar
-            AnimatedSearchBar(
-                query = uiState.query,
-                onQueryChange = { viewModel.onQueryChange(it) },
-                onSearch = { viewModel.search() }
-            )
-            
-            // Suggestions Dropdown
-            AnimatedVisibility(
-                visible = uiState.showSuggestions && uiState.suggestions.isNotEmpty(),
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
-            ) {
-                Card(
+                // Search Bar
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 4.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                        .weight(1f)
+                        .height(44.dp)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .padding(horizontal = 16.dp),
+                    contentAlignment = Alignment.CenterStart
                 ) {
-                    Column(
-                        modifier = Modifier.padding(vertical = 8.dp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        uiState.suggestions.forEach { suggestion ->
-                            SuggestionItem(
-                                suggestion = suggestion,
-                                onClick = { viewModel.onSuggestionClick(suggestion) }
-                            )
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        
+                        BasicTextField(
+                            value = uiState.query,
+                            onValueChange = { viewModel.onQueryChange(it) },
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 12.dp)
+                                .onFocusChanged { 
+                                    isSearchFocused = it.isFocused
+                                    viewModel.onSearchFocusChange(it.isFocused)
+                                },
+                            textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                color = MaterialTheme.colorScheme.onSurface
+                            ),
+                            singleLine = true,
+                            cursorBrush = SolidColor(accentColor),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            keyboardActions = KeyboardActions(
+                                onSearch = {
+                                    viewModel.search()
+                                    focusManager.clearFocus()
+                                }
+                            ),
+                            decorationBox = { innerTextField ->
+                                Box {
+                                    if (uiState.query.isEmpty()) {
+                                        Text(
+                                            text = "Artists, Songs, Lyrics and more",
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                            }
+                        )
+                        
+                        // Clear button
+                        AnimatedVisibility(visible = uiState.query.isNotEmpty()) {
+                            IconButton(
+                                onClick = { viewModel.onQueryChange("") },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Clear,
+                                    contentDescription = "Clear",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
                     }
                 }
             }
             
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // Show browse categories when no search results and no category selected
-            if (uiState.query.isBlank() && uiState.selectedCategory == null) {
-                // Browse Categories Section
-                Text(
-                    text = "Browse All",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
+            // Tabs (YouTube Music / Your Library) - visible when searching
+            AnimatedVisibility(visible = uiState.query.isNotBlank()) {
+                val selectedTabIndex = if (uiState.selectedTab == SearchTab.YOUTUBE_MUSIC) 0 else 1
                 
-                if (uiState.isCategoriesLoading) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(32.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
-                    }
-                } else {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        contentPadding = PaddingValues(bottom = 140.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        itemsIndexed(uiState.browseCategories) { index, category ->
-                            BrowseCategoryCard(
-                                category = category,
-                                onClick = { viewModel.onCategoryClick(category) },
-                                index = index
+                TabRow(
+                    selectedTabIndex = selectedTabIndex,
+                    containerColor = Color.Transparent,
+                    contentColor = accentColor,
+                    indicator = { tabPositions ->
+                        TabRowDefaults.SecondaryIndicator(
+                            modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
+                            color = accentColor
+                        )
+                    },
+                    divider = {}
+                ) {
+                    Tab(
+                        selected = selectedTabIndex == 0,
+                        onClick = { viewModel.onTabChange(SearchTab.YOUTUBE_MUSIC) },
+                        text = {
+                            Text(
+                                text = "YOUTUBE MUSIC",
+                                fontWeight = if (selectedTabIndex == 0) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 12.sp
                             )
-                        }
-                    }
+                        },
+                        selectedContentColor = accentColor,
+                        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Tab(
+                        selected = selectedTabIndex == 1,
+                        onClick = { viewModel.onTabChange(SearchTab.YOUR_LIBRARY) },
+                        text = {
+                            Text(
+                                text = "YOUR LIBRARY",
+                                fontWeight = if (selectedTabIndex == 1) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 12.sp
+                            )
+                        },
+                        selectedContentColor = accentColor,
+                        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
-            } else {
-                // Filter Chips (show when searching or category selected)
-                if (uiState.selectedCategory == null && uiState.query.isNotBlank()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        FilterChipItem(
-                            label = "Songs",
-                            selected = uiState.filter == YouTubeRepository.FILTER_SONGS,
-                            onClick = { viewModel.setFilter(YouTubeRepository.FILTER_SONGS) }
-                        )
-                        FilterChipItem(
-                            label = "Albums",
-                            selected = uiState.filter == YouTubeRepository.FILTER_ALBUMS,
-                            onClick = { viewModel.setFilter(YouTubeRepository.FILTER_ALBUMS) }
-                        )
-                        FilterChipItem(
-                            label = "Artists",
-                            selected = uiState.filter == YouTubeRepository.FILTER_ARTISTS,
-                            onClick = { viewModel.setFilter(YouTubeRepository.FILTER_ARTISTS) }
+            }
+            
+            // Content Area
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 140.dp)
+            ) {
+                // Show suggestions when typing
+                if (uiState.query.isNotBlank() && uiState.suggestions.isNotEmpty()) {
+                    items(uiState.suggestions.take(3)) { suggestion ->
+                        SuggestionItem(
+                            suggestion = suggestion,
+                            accentColor = accentColor,
+                            onClick = { viewModel.onSuggestionClick(suggestion) }
                         )
                     }
                     
-                    Spacer(modifier = Modifier.height(16.dp))
+                    item { 
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                    }
                 }
                 
                 // Loading indicator
                 if (uiState.isLoading) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(32.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(color = accentColor)
+                        }
                     }
                 }
                 
-                // Results
-                LazyColumn(
-                    contentPadding = PaddingValues(bottom = 140.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+                // Search Results
+                if (uiState.query.isNotBlank() && uiState.results.isNotEmpty()) {
                     itemsIndexed(uiState.results) { index, song ->
-                        MusicCard(
+                        SearchResultItem(
                             song = song,
-                            onClick = { onSongClick(uiState.results, index) }
+                            onClick = {
+                                viewModel.addToRecentSearches(song)
+                                onSongClick(uiState.results, index)
+                            }
                         )
                     }
-                    
-                    if (uiState.results.isEmpty() && uiState.query.isNotBlank() && !uiState.isLoading) {
-                        item {
+                }
+                
+                // No results message
+                if (uiState.query.isNotBlank() && uiState.results.isEmpty() && !uiState.isLoading) {
+                    item {
+                        Text(
+                            text = "No results found for \"${uiState.query}\"",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 32.dp)
+                        )
+                    }
+                }
+                
+                // Recent Searches (when not searching)
+                if (uiState.query.isBlank() && uiState.recentSearches.isNotEmpty()) {
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Text(
-                                text = "No results found for \"${uiState.query}\"",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(vertical = 32.dp)
+                                text = "Recently Searched",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            
+                            Text(
+                                text = "Clear",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = accentColor,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.clickable { viewModel.clearRecentSearches() }
+                            )
+                        }
+                    }
+                    
+                    items(uiState.recentSearches) { song ->
+                        SearchResultItem(
+                            song = song,
+                            onClick = {
+                                viewModel.addToRecentSearches(song)
+                                onSongClick(uiState.recentSearches, uiState.recentSearches.indexOf(song))
+                            }
+                        )
+                    }
+                }
+                
+                // Empty state when no recent searches
+                if (uiState.query.isBlank() && uiState.recentSearches.isEmpty()) {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(32.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                modifier = Modifier.size(64.dp)
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "Search for music",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Find songs, albums, artists and more",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                             )
                         }
                     }
@@ -254,19 +374,20 @@ fun SearchScreen(
 @Composable
 private fun SuggestionItem(
     suggestion: String,
+    accentColor: Color,
     onClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = Icons.Default.Search,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = accentColor,
             modifier = Modifier.size(20.dp)
         )
         
@@ -275,34 +396,77 @@ private fun SuggestionItem(
         Text(
             text = suggestion,
             style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f)
-        )
-        
-        // Arrow to fill search box with suggestion
-        Icon(
-            imageVector = Icons.Default.NorthWest,
-            contentDescription = "Fill search",
-            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-            modifier = Modifier.size(18.dp)
+            color = MaterialTheme.colorScheme.onSurface
         )
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun FilterChipItem(
-    label: String,
-    selected: Boolean,
+private fun SearchResultItem(
+    song: Song,
     onClick: () -> Unit
 ) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = { Text(label) },
-        colors = FilterChipDefaults.filterChipColors(
-            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Thumbnail
+        AsyncImage(
+            model = song.thumbnailUrl,
+            contentDescription = null,
+            modifier = Modifier
+                .size(50.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+            contentScale = ContentScale.Crop
         )
-    )
+        
+        Spacer(modifier = Modifier.width(12.dp))
+        
+        // Title and Artist
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                text = song.title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Song",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = " • ",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = song.artist,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+        
+        // Menu button
+        IconButton(onClick = { /* TODO: Show menu */ }) {
+            Icon(
+                imageVector = Icons.Default.MoreVert,
+                contentDescription = "More options",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
 }
+
