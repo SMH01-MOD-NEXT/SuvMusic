@@ -102,6 +102,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.BoxWithConstraints
 import com.suvojeet.suvmusic.ui.utils.isLandscape
 
 /**
@@ -182,15 +183,21 @@ fun PlayerScreen(
                 }
             }
     ) {
-        // Main Player Content
-        val isLandscapeMode = isLandscape()
-        
+        // Main Player Content - Use BoxWithConstraints for dynamic adaptive layout
+        // This responds to floating windows and resizing on tablets
         AnimatedVisibility(
             visible = !showQueue,
             enter = fadeIn(),
             exit = fadeOut()
         ) {
-            if (isLandscapeMode) {
+            BoxWithConstraints(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                // Use width-based breakpoint (500dp threshold)
+                // This works for: landscape, tablets, floating windows
+                val useWideLayout = maxWidth > 500.dp
+                
+                if (useWideLayout) {
                 // Landscape Layout - Side by side
                 Row(
                     modifier = Modifier
@@ -409,7 +416,7 @@ fun PlayerScreen(
                 }
             }
         }
-        
+        }
         // Queue View
         AnimatedVisibility(
             visible = showQueue,
@@ -589,17 +596,19 @@ private fun AlbumArtwork(
     val scale = 1f - (kotlin.math.abs(animatedOffsetX) / 1500f).coerceIn(0f, 0.1f)
     val rotation = animatedOffsetX / 30f
     
-    val isLandscapeMode = isLandscape()
-    
-    Box(
-        modifier = Modifier
-            .then(
-                if (isLandscapeMode) {
-                    Modifier.fillMaxHeight(0.85f).aspectRatio(1f)
-                } else {
-                    Modifier.fillMaxWidth(0.85f).aspectRatio(1f)
-                }
-            )
+    BoxWithConstraints {
+        // Use width-based check for dynamic resizing support
+        val isWideLayout = maxWidth > 500.dp
+        
+        Box(
+            modifier = Modifier
+                .then(
+                    if (isWideLayout) {
+                        Modifier.fillMaxHeight(0.85f).aspectRatio(1f)
+                    } else {
+                        Modifier.fillMaxWidth(0.85f).aspectRatio(1f)
+                    }
+                )
             .graphicsLayer {
                 translationX = animatedOffsetX
                 scaleX = scale
@@ -662,6 +671,7 @@ private fun AlbumArtwork(
         LoadingArtworkOverlay(
             isVisible = isLoading
         )
+    }
     }
 }
 
