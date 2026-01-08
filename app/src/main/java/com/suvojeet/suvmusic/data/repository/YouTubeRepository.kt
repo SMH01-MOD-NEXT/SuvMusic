@@ -74,13 +74,23 @@ class YouTubeRepository @Inject constructor(
             
             searchExtractor.initialPage.items.filterIsInstance<StreamInfoItem>().mapNotNull { item ->
                 try {
+                    // Extract artist ID from uploader URL (format: youtube.com/channel/UC...)
+                    val artistId = item.uploaderUrl?.let { url ->
+                        when {
+                            url.contains("/channel/") -> url.substringAfter("/channel/").substringBefore("/").substringBefore("?")
+                            url.contains("/@") -> null // Handle URLs don't have direct channel IDs
+                            else -> null
+                        }
+                    }
+                    
                     Song.fromYouTube(
                         videoId = extractVideoId(item.url),
                         title = item.name ?: "Unknown",
                         artist = item.uploaderName ?: "Unknown Artist",
                         album = "",
                         duration = item.duration * 1000L,
-                        thumbnailUrl = item.thumbnails?.firstOrNull()?.url
+                        thumbnailUrl = item.thumbnails?.firstOrNull()?.url,
+                        artistId = artistId
                     )
                 } catch (e: Exception) {
                     null

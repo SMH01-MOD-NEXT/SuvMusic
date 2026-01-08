@@ -73,6 +73,7 @@ import com.suvojeet.suvmusic.ui.viewmodel.SearchViewModel
 @Composable
 fun SearchScreen(
     onSongClick: (List<Song>, Int) -> Unit,
+    onArtistClick: (String) -> Unit = {}, // Artist browse ID
     viewModel: SearchViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -281,6 +282,9 @@ fun SearchScreen(
                             onClick = {
                                 viewModel.addToRecentSearches(song)
                                 onSongClick(uiState.results, index)
+                            },
+                            onArtistClick = { artistId ->
+                                onArtistClick(artistId)
                             }
                         )
                     }
@@ -331,6 +335,9 @@ fun SearchScreen(
                             onClick = {
                                 viewModel.addToRecentSearches(song)
                                 onSongClick(uiState.recentSearches, uiState.recentSearches.indexOf(song))
+                            },
+                            onArtistClick = { artistId ->
+                                onArtistClick(artistId)
                             }
                         )
                     }
@@ -404,7 +411,8 @@ private fun SuggestionItem(
 @Composable
 private fun SearchResultItem(
     song: Song,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onArtistClick: (String) -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -452,9 +460,14 @@ private fun SearchResultItem(
                 Text(
                     text = song.artist,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (song.artistId != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = if (song.artistId != null) {
+                        Modifier.clickable { onArtistClick(song.artistId) }
+                    } else {
+                        Modifier
+                    }
                 )
             }
         }

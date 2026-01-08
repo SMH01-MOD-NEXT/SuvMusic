@@ -109,7 +109,10 @@ fun NavGraph(
         
         composable(Destination.Search.route) {
             SearchScreen(
-                onSongClick = { songs, index -> onPlaySong(songs, index) }
+                onSongClick = { songs, index -> onPlaySong(songs, index) },
+                onArtistClick = { artistId ->
+                    navController.navigate(Destination.Artist(artistId).route)
+                }
             )
         }
         
