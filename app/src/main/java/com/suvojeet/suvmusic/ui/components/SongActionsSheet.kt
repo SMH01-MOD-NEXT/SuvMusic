@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Nightlight
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Radio
+import androidx.compose.material.icons.filled.RingVolume
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.StarOutline
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -55,7 +56,8 @@ fun SongActionsSheet(
     onAddToPlaylist: () -> Unit = {},
     onViewCredits: () -> Unit = {},
     onSleepTimer: () -> Unit = {},
-    onToggleFavorite: () -> Unit = {}
+    onToggleFavorite: () -> Unit = {},
+    onSetRingtone: () -> Unit = {}
 ) {
     val sheetState = rememberModalBottomSheetState()
     val context = LocalContext.current
@@ -182,6 +184,13 @@ fun SongActionsSheet(
                     title = "Add to Favourites",
                     iconTint = MaterialTheme.colorScheme.primary,
                     onClick = { onToggleFavorite(); onDismiss() }
+                )
+                
+                ActionItem(
+                    icon = Icons.Default.RingVolume,
+                    title = "Set as Ringtone",
+                    iconTint = MaterialTheme.colorScheme.secondary,
+                    onClick = { onSetRingtone(); onDismiss() }
                 )
             }
         }

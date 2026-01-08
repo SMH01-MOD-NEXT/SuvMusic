@@ -477,6 +477,15 @@ fun PlayerScreen(
                 onSleepTimer = {
                     showActionsSheet = false
                     showSleepTimerSheet = true
+                },
+                onSetRingtone = {
+                    showActionsSheet = false
+                    // Show toast - user needs to download song first and set via system settings
+                    Toast.makeText(
+                        context,
+                        "Download the song first, then set as ringtone from Downloads",
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
             )
             
