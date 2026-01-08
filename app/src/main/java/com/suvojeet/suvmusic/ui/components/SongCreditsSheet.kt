@@ -196,9 +196,9 @@ fun SongCreditsSheet(
                     
                     Spacer(modifier = Modifier.height(16.dp))
                     
-                    // Artist Card Section (Apple Music style)
+                    // PERFORMING ARTISTS Section (Apple Music style)
                     Text(
-                        text = "ARTISTS",
+                        text = "PERFORMING ARTISTS",
                         style = MaterialTheme.typography.labelMedium.copy(
                             letterSpacing = 2.sp
                         ),
@@ -208,24 +208,36 @@ fun SongCreditsSheet(
                     
                     Spacer(modifier = Modifier.height(12.dp))
                     
-                    // Artist cards horizontal scroll
+                    // Artists vertical list in a Surface container
                     val artists = parseArtists(song.artist)
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp)
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        color = Color.White.copy(alpha = 0.08f),
+                        shape = RoundedCornerShape(16.dp)
                     ) {
-                        items(artists) { artistInfo ->
-                            ArtistCreditCard(
-                                artistName = artistInfo.first,
-                                artistId = artistInfo.second,
-                                onClick = { 
-                                    artistInfo.second?.let { onArtistClick(it) }
+                        Column {
+                            artists.forEachIndexed { index, artistInfo ->
+                                ArtistCreditRow(
+                                    artistName = artistInfo.first,
+                                    role = "Vocals",
+                                    artistId = artistInfo.second,
+                                    onClick = { 
+                                        artistInfo.second?.let { onArtistClick(it) }
+                                    }
+                                )
+                                if (index < artists.lastIndex) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(start = 72.dp),
+                                        color = Color.White.copy(alpha = 0.1f)
+                                    )
                                 }
-                            )
+                            }
                         }
                     }
                     
-                    Spacer(modifier = Modifier.height(32.dp))
+                    Spacer(modifier = Modifier.height(24.dp))
                     
                     // Credits section header
                     Text(
@@ -468,67 +480,62 @@ private fun parseArtists(artistString: String): List<Pair<String, String?>> {
 }
 
 /**
- * Apple Music-style artist card with circular profile image
+ * Apple Music-style artist row with circular profile image and role label
  */
 @Composable
-private fun ArtistCreditCard(
+private fun ArtistCreditRow(
     artistName: String,
+    role: String,
     artistId: String?,
     onClick: () -> Unit
 ) {
-    val context = LocalContext.current
-    
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
+    Row(
         modifier = Modifier
-            .width(90.dp)
+            .fillMaxWidth()
             .clickable(enabled = artistId != null, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        // Circular profile image placeholder
+        // Circular avatar with first letter or initials
         Box(
             modifier = Modifier
-                .size(72.dp)
-                .shadow(8.dp, CircleShape)
+                .size(48.dp)
                 .clip(CircleShape)
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(
-                            Color(0xFF667EEA),
-                            Color(0xFF764BA2)
-                        )
-                    )
-                ),
+                .background(Color(0xFF3A3A3C)),
             contentAlignment = Alignment.Center
         ) {
-            // Show first letter of artist name as avatar
+            // Get initials (first letter of each word, max 2)
+            val initials = artistName.split(" ")
+                .filter { it.isNotBlank() }
+                .take(2)
+                .map { it.first().uppercaseChar() }
+                .joinToString("")
+            
             Text(
-                text = artistName.firstOrNull()?.uppercase() ?: "?",
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    fontWeight = FontWeight.Bold
+                text = initials.ifEmpty { "?" },
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.SemiBold
                 ),
                 color = Color.White
             )
         }
         
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.width(16.dp))
         
-        // Artist name
-        Text(
-            text = artistName,
-            style = MaterialTheme.typography.bodyMedium.copy(
-                fontWeight = FontWeight.SemiBold
-            ),
-            color = Color.White,
-            textAlign = TextAlign.Center,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
-        )
-        
-        // Role label
-        Text(
-            text = "Artist",
-            style = MaterialTheme.typography.bodySmall,
-            color = Color.White.copy(alpha = 0.5f)
-        )
+        // Artist name and role
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = artistName,
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color.White,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = role,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White.copy(alpha = 0.5f)
+            )
+        }
     }
 }
