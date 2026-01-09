@@ -49,6 +49,10 @@ class DownloadRepository @Inject constructor(
     private val _downloadingIds = MutableStateFlow<Set<String>>(emptySet())
     val downloadingIds: StateFlow<Set<String>> = _downloadingIds.asStateFlow()
     
+    // Download progress tracking for progressive download UI (songId -> progress 0.0-1.0)
+    private val _downloadProgress = MutableStateFlow<Map<String, Float>>(emptyMap())
+    val downloadProgress: StateFlow<Map<String, Float>> = _downloadProgress.asStateFlow()
+    
     // Dedicated HTTP client for downloads with longer timeouts
     private val downloadClient = OkHttpClient.Builder()
         .connectTimeout(60, TimeUnit.SECONDS)
@@ -439,6 +443,170 @@ class DownloadRepository @Inject constructor(
         } catch (e: Exception) {
             Log.e(TAG, "Download error for ${song.id}", e)
             _downloadingIds.value = _downloadingIds.value - song.id
+            _downloadProgress.value = _downloadProgress.value - song.id
+            false
+        }
+    }
+
+    /**
+     * Progressive download with playback callback.
+     * Downloads first ~30 seconds, triggers onReadyToPlay, then continues downloading.
+     * This enables "play while downloading" feature.
+     * 
+     * @param song The song to download
+     * @param onReadyToPlay Callback when first chunk is ready for playback (receives temp file URI)
+     * @return true if download completed successfully
+     */
+    suspend fun downloadSongProgressive(
+        song: Song,
+        onReadyToPlay: (android.net.Uri) -> Unit
+    ): Boolean = withContext(Dispatchers.IO) {
+        if (_downloadedSongs.value.any { it.id == song.id }) {
+            Log.d(TAG, "Song ${song.id} already downloaded")
+            // Already downloaded, play from existing file
+            _downloadedSongs.value.find { it.id == song.id }?.localUri?.let { uri ->
+                withContext(Dispatchers.Main) { onReadyToPlay(uri) }
+            }
+            return@withContext true
+        }
+        
+        // Mark as downloading
+        _downloadingIds.value = _downloadingIds.value + song.id
+        _downloadProgress.value = _downloadProgress.value + (song.id to 0f)
+        Log.d(TAG, "Starting progressive download for: ${song.title}")
+        
+        try {
+            // Get stream URL
+            val streamUrl = youTubeRepository.getStreamUrlForDownload(song.id)
+            if (streamUrl == null) {
+                Log.e(TAG, "Failed to get stream URL for ${song.id}")
+                _downloadingIds.value = _downloadingIds.value - song.id
+                _downloadProgress.value = _downloadProgress.value - song.id
+                return@withContext false
+            }
+            
+            // Create temp file for progressive download
+            val tempDir = File(context.cacheDir, "progressive_downloads")
+            if (!tempDir.exists()) tempDir.mkdirs()
+            val tempFile = File(tempDir, "${song.id}.m4a.tmp")
+            
+            val request = Request.Builder()
+                .url(streamUrl)
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                .header("Accept", "*/*")
+                .header("Accept-Encoding", "identity")
+                .build()
+            
+            val response = downloadClient.newCall(request).execute()
+            
+            if (!response.isSuccessful) {
+                Log.e(TAG, "Progressive download request failed: ${response.code}")
+                response.close()
+                _downloadingIds.value = _downloadingIds.value - song.id
+                _downloadProgress.value = _downloadProgress.value - song.id
+                return@withContext false
+            }
+            
+            val contentLength = response.body?.contentLength() ?: -1L
+            Log.d(TAG, "Content length: $contentLength bytes")
+            
+            // Estimate bytes for 30 seconds (assuming ~128kbps = 16KB/s)
+            // 30 seconds = ~480KB minimum to start playback
+            val minBytesForPlayback = 480 * 1024L
+            var playbackTriggered = false
+            var totalBytesRead = 0L
+            
+            response.body?.byteStream()?.use { inputStream ->
+                FileOutputStream(tempFile).use { outputStream ->
+                    val buffer = ByteArray(8192) // 8KB buffer for smooth progress
+                    var bytesRead: Int
+                    
+                    while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                        outputStream.write(buffer, 0, bytesRead)
+                        totalBytesRead += bytesRead
+                        
+                        // Update progress
+                        if (contentLength > 0) {
+                            val progress = (totalBytesRead.toFloat() / contentLength).coerceIn(0f, 1f)
+                            _downloadProgress.value = _downloadProgress.value + (song.id to progress)
+                        }
+                        
+                        // Trigger playback when we have enough data (~30 seconds)
+                        if (!playbackTriggered && totalBytesRead >= minBytesForPlayback) {
+                            playbackTriggered = true
+                            Log.d(TAG, "First chunk ready ($totalBytesRead bytes), triggering playback")
+                            withContext(Dispatchers.Main) {
+                                onReadyToPlay(tempFile.toUri())
+                            }
+                        }
+                    }
+                }
+            }
+            
+            response.close()
+            
+            // If file was small and playback wasn't triggered, trigger now
+            if (!playbackTriggered && tempFile.exists()) {
+                Log.d(TAG, "Small file, triggering playback now")
+                withContext(Dispatchers.Main) {
+                    onReadyToPlay(tempFile.toUri())
+                }
+            }
+            
+            // Move temp file to final location
+            val finalUri = saveFileToPublicDownloads(song.id, song.artist, song.title, tempFile.inputStream())
+            tempFile.delete()
+            
+            if (finalUri == null) {
+                Log.e(TAG, "Failed to save final file")
+                _downloadingIds.value = _downloadingIds.value - song.id
+                _downloadProgress.value = _downloadProgress.value - song.id
+                return@withContext false
+            }
+            
+            Log.d(TAG, "Progressive download complete: $finalUri")
+            
+            // Download thumbnail
+            var localThumbnailUrl = song.thumbnailUrl
+            if (!song.thumbnailUrl.isNullOrEmpty() && song.thumbnailUrl.startsWith("http")) {
+                try {
+                    val highResThumbnailUrl = getHighResThumbnailUrl(song.thumbnailUrl, song.id)
+                    val thumbRequest = Request.Builder().url(highResThumbnailUrl).build()
+                    val thumbResponse = downloadClient.newCall(thumbRequest).execute()
+                    if (thumbResponse.isSuccessful) {
+                        val thumbnailsDir = File(context.filesDir, "thumbnails")
+                        if (!thumbnailsDir.exists()) thumbnailsDir.mkdirs()
+                        val thumbFile = File(thumbnailsDir, "${song.id}.jpg")
+                        thumbResponse.body?.bytes()?.let { bytes ->
+                            FileOutputStream(thumbFile).use { it.write(bytes) }
+                            localThumbnailUrl = thumbFile.absolutePath
+                        }
+                    }
+                    thumbResponse.close()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to download thumbnail", e)
+                }
+            }
+            
+            // Save to downloaded songs
+            val downloadedSong = song.copy(
+                source = SongSource.DOWNLOADED,
+                localUri = finalUri,
+                thumbnailUrl = localThumbnailUrl,
+                streamUrl = null
+            )
+            
+            _downloadedSongs.value = _downloadedSongs.value + downloadedSong
+            saveDownloads()
+            
+            _downloadingIds.value = _downloadingIds.value - song.id
+            _downloadProgress.value = _downloadProgress.value - song.id
+            Log.d(TAG, "Song ${song.title} progressive download successful!")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Progressive download error for ${song.id}", e)
+            _downloadingIds.value = _downloadingIds.value - song.id
+            _downloadProgress.value = _downloadProgress.value - song.id
             false
         }
     }

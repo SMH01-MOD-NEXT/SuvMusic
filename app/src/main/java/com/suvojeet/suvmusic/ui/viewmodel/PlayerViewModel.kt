@@ -187,6 +187,65 @@ class PlayerViewModel @Inject constructor(
         }
     }
     
+    /**
+     * Download current song with progressive playback.
+     * Starts playing after first ~30 seconds download, continues downloading in background.
+     * Use this for "Download & Play" feature.
+     */
+    fun downloadAndPlayCurrentSong() {
+        val song = playerState.value.currentSong ?: return
+        if (downloadRepository.isDownloading(song.id)) return
+        
+        // If already downloaded, just play from local
+        if (downloadRepository.isDownloaded(song.id)) {
+            // Already playing or can seek to start
+            return
+        }
+        
+        musicPlayer.updateDownloadState(DownloadState.DOWNLOADING)
+        viewModelScope.launch {
+            val success = downloadRepository.downloadSongProgressive(song) { tempUri ->
+                // First chunk ready - start playing from temp file
+                android.util.Log.d("PlayerViewModel", "Progressive download ready, playing from: $tempUri")
+                // The song is already playing (streaming), we just continue
+                // The file will be saved when download completes
+            }
+            
+            if (success) {
+                musicPlayer.updateDownloadState(DownloadState.DOWNLOADED)
+            } else {
+                musicPlayer.updateDownloadState(DownloadState.FAILED)
+            }
+        }
+    }
+    
+    /**
+     * Download and immediately start playing a song (not current).
+     * Perfect for clicking download on a song and having it play while downloading.
+     */
+    fun downloadAndPlay(song: Song) {
+        if (downloadRepository.isDownloading(song.id)) return
+        
+        // If already downloaded, play from local
+        if (downloadRepository.isDownloaded(song.id)) {
+            val downloadedSong = downloadRepository.downloadedSongs.value.find { it.id == song.id }
+            if (downloadedSong != null) {
+                playSong(downloadedSong)
+            }
+            return
+        }
+        
+        viewModelScope.launch {
+            downloadRepository.downloadSongProgressive(song) { tempUri ->
+                // First chunk ready - start playback from temp file
+                val tempSong = song.copy(
+                    source = SongSource.DOWNLOADED,
+                    localUri = tempUri
+                )
+                playSong(tempSong)
+            }
+        }
+    }    
 
     
     private fun fetchLyrics(videoId: String) {
