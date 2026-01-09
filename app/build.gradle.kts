@@ -59,6 +59,8 @@ android {
     }
     
     compileOptions {
+        // Enable desugaring for Java 8+ APIs on older Android versions
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -72,6 +74,9 @@ android {
 }
 
 dependencies {
+    // Core Library Desugaring for Java 8+ APIs on older Android
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+    
     // Core
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
