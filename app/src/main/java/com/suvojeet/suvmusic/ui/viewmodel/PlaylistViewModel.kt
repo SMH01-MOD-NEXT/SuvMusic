@@ -70,10 +70,13 @@ class PlaylistViewModel @Inject constructor(
             try {
                 val playlist = youTubeRepository.getPlaylist(playlistId)
                 
-                // Merge with initial data - prefer API data but fallback to nav params
+                // Merge with initial data:
+                // - Prefer navigation thumbnail (it's the correct playlist art from Home screen)
+                // - Fallback to API data only if nav data is missing
                 val finalPlaylist = playlist.copy(
                     title = if (playlist.title == "Unknown Playlist" && initialName != null) initialName else playlist.title,
-                    thumbnailUrl = playlist.thumbnailUrl ?: initialThumbnail
+                    thumbnailUrl = initialThumbnail ?: playlist.thumbnailUrl,
+                    author = playlist.author.takeIf { it.isNotBlank() } ?: ""
                 )
                 
                 _uiState.update { 
