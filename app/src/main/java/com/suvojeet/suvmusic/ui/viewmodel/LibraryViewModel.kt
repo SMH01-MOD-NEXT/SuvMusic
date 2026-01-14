@@ -2,6 +2,7 @@ package com.suvojeet.suvmusic.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.suvojeet.suvmusic.data.model.ImportResult
 import com.suvojeet.suvmusic.data.model.PlaylistDisplayItem
 import com.suvojeet.suvmusic.data.model.Song
 import com.suvojeet.suvmusic.data.repository.DownloadRepository
@@ -22,8 +23,17 @@ data class LibraryUiState(
     val likedSongs: List<Song> = emptyList(),
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
+    val importState: ImportState = ImportState.Idle,
     val error: String? = null
 )
+
+sealed class ImportState {
+    object Idle : ImportState()
+    object Loading : ImportState()
+    data class Matching(val current: Int, val total: Int) : ImportState()
+    data class Success(val results: List<ImportResult>) : ImportState()
+    data class Error(val message: String) : ImportState()
+}
 
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
@@ -31,7 +41,8 @@ class LibraryViewModel @Inject constructor(
     private val jioSaavnRepository: com.suvojeet.suvmusic.data.repository.JioSaavnRepository,
     private val localAudioRepository: LocalAudioRepository,
     private val downloadRepository: DownloadRepository,
-    private val sessionManager: com.suvojeet.suvmusic.data.SessionManager
+    private val sessionManager: com.suvojeet.suvmusic.data.SessionManager,
+    private val spotifyImportHelper: com.suvojeet.suvmusic.util.SpotifyImportHelper
 ) : ViewModel() {
     
     private val _uiState = MutableStateFlow(LibraryUiState())
@@ -129,5 +140,51 @@ class LibraryViewModel @Inject constructor(
     fun refresh() {
         _uiState.update { it.copy(isRefreshing = true) }
         loadData()
+    }
+
+    fun importSpotifyPlaylist(url: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(importState = ImportState.Loading) }
+            try {
+                val spotifySongs = spotifyImportHelper.getPlaylistSongs(url)
+                if (spotifySongs.isEmpty()) {
+                    _uiState.update { it.copy(importState = ImportState.Error("No songs found in the playlist. Make sure it's public.")) }
+                    return@launch
+                }
+
+                _uiState.update { it.copy(importState = ImportState.Matching(0, spotifySongs.size)) }
+                
+                val importResults = spotifyImportHelper.matchSongsOnYouTube(spotifySongs) { current, total ->
+                    _uiState.update { it.copy(importState = ImportState.Matching(current, total)) }
+                }
+
+                val matchedSongs = importResults.mapNotNull { it.matchedSong }
+
+                if (matchedSongs.isEmpty()) {
+                    _uiState.update { it.copy(importState = ImportState.Error("Could not find any of the songs on YouTube Music.")) }
+                    return@launch
+                }
+
+                // Create a new playlist on YouTube with the matched songs
+                val playlistTitle = "Spotify Import ${System.currentTimeMillis() / 1000}"
+                val playlistId = youTubeRepository.createPlaylist(playlistTitle, "Imported from Spotify via SuvMusic")
+                
+                if (playlistId != null) {
+                    matchedSongs.forEach { song ->
+                        youTubeRepository.addSongToPlaylist(playlistId, song.id)
+                    }
+                    _uiState.update { it.copy(importState = ImportState.Success(importResults)) }
+                    refresh() // Refresh to show new playlist
+                } else {
+                    _uiState.update { it.copy(importState = ImportState.Error("Failed to create playlist on YouTube. Are you logged in?")) }
+                }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(importState = ImportState.Error(e.message ?: "An unknown error occurred")) }
+            }
+        }
+    }
+
+    fun resetImportState() {
+        _uiState.update { it.copy(importState = ImportState.Idle) }
     }
 }
