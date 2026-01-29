@@ -57,9 +57,21 @@ class MusicPlayer @Inject constructor(
     private val listeningHistoryRepository: ListeningHistoryRepository,
     private val cache: androidx.media3.datasource.cache.Cache,
     @com.suvojeet.suvmusic.di.PlayerDataSource private val dataSourceFactory: androidx.media3.datasource.DataSource.Factory,
-    private val musicHapticsManager: MusicHapticsManager
+    private val musicHapticsManager: MusicHapticsManager,
+    private val sponsorBlockRepository: com.suvojeet.suvmusic.data.repository.SponsorBlockRepository
 ) {
-    
+
+    // Enum to track who initiated the seek/position change
+    private enum class SeekSource {
+        PLAYER,
+        USER,
+        SPONSORBLOCK
+    }
+
+    // Volatile state to track seek source across threads
+    @Volatile
+    private var lastSeekSource: SeekSource = SeekSource.PLAYER
+
     // ... (existing properties)
 
     // Caching
@@ -86,7 +98,10 @@ class MusicPlayer @Inject constructor(
     
     // Track manually selected device ID to persist selection across refreshes
     private var manualSelectedDeviceId: String? = null
-    
+
+    // Track when the user last manually seeked to provide a short immunity window
+    private var lastManualSeekTimestamp: Long = 0L
+
     // Cache for resolved video IDs for non-YouTube songs (SongId -> VideoId)
     // Fix: Unbounded Memory Leak -> Use LruCache with max size 100
     private val resolvedVideoIds = android.util.LruCache<String, String>(100)
@@ -164,9 +179,9 @@ class MusicPlayer @Inject constructor(
         // 2. Add other devices
         audioDevices.forEach { device ->
             val type = when (device.type) {
-                AudioDeviceInfo.TYPE_BLUETOOTH_A2DP, 
+                AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
                 AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> DeviceType.BLUETOOTH
-                AudioDeviceInfo.TYPE_WIRED_HEADPHONES, 
+                AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
                 AudioDeviceInfo.TYPE_WIRED_HEADSET,
                 AudioDeviceInfo.TYPE_USB_HEADSET -> DeviceType.HEADPHONES
                 AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> return@forEach // Already handled
@@ -311,6 +326,9 @@ class MusicPlayer @Inject constructor(
         }
         
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            // Reset SeekSource on track change to ensure clean state
+            lastSeekSource = SeekSource.PLAYER
+
             mediaItem?.let { item ->
                 val controller = mediaController ?: return@let
                 val index = controller.currentMediaItemIndex
@@ -348,9 +366,9 @@ class MusicPlayer @Inject constructor(
                         currentSongStartPosition = controller.currentPosition
                     }
                 }
-                
+
                 // Handle both AUTO (song ended) and SEEK (notification next/prev) transitions
-                val shouldResolve = reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || 
+                val shouldResolve = reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO ||
                                    reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK
                 
                 if (shouldResolve && song != null) {
@@ -425,12 +443,12 @@ class MusicPlayer @Inject constructor(
                         // Fallback logic: If in Video Mode, switch to Audio Mode first
                         if (_playerState.value.isVideoMode) {
                              android.util.Log.d("MusicPlayer", "Video playback failed, falling back to audio")
-                             _playerState.update { 
+                             _playerState.update {
                                  it.copy(
-                                     isVideoMode = false, 
+                                     isVideoMode = false,
                                      videoNotFound = true,
                                      error = "Video unavailable, switching to audio..."
-                                 ) 
+                                 )
                              }
                              // Clear cached video entry if it might be bad
                              resolvedVideoIds.remove(currentSong.id)
@@ -628,11 +646,39 @@ class MusicPlayer @Inject constructor(
     }
     
     private var saveCounter = 0
-    
+
+    // Helper to determine valid video ID for current playback
+    private fun getCurrentVideoId(): String? {
+        val currentSong = _playerState.value.currentSong ?: return null
+        return if (_playerState.value.isVideoMode) {
+            resolvedVideoIds[currentSong.id]
+        } else if (currentSong.source == SongSource.YOUTUBE) {
+            currentSong.id
+        } else {
+            null
+        }
+    }
+
+    // Internal helper to perform instant automated skips
+    private fun sponsorBlockSeek(to: Long) {
+        // Prevent infinite loops if multiple segments are close
+        if (lastSeekSource == SeekSource.SPONSORBLOCK) {
+            // Optional: check if we are already at target?
+        }
+
+        lastSeekSource = SeekSource.SPONSORBLOCK
+        mediaController?.seekTo(to)
+        android.util.Log.d("MusicPlayer", "SponsorBlock performed seek to $to ms")
+    }
+
     private fun startPositionUpdates() {
         positionUpdateJob?.cancel()
         saveCounter = 0
         positionUpdateJob = scope.launch {
+            // Local variable to track the last video ID processed by SponsorBlock within this watcher loop.
+            // This avoids unnecessary calls to the repository if the song hasn't changed.
+            var lastWatcherVideoId: String? = null
+
             while (true) {
                 mediaController?.let { controller ->
                     val currentPos = controller.currentPosition.coerceAtLeast(0L)
@@ -645,10 +691,35 @@ class MusicPlayer @Inject constructor(
                             bufferedPercentage = controller.bufferedPercentage
                         )
                     }
-                    
-                    // Save playback state every ~5 seconds (20 iterations * 250ms = 5s)
+
+                    val targetVideoId = getCurrentVideoId()
+
+                    if (targetVideoId != null) {
+                        // Load segments if video changed
+                        if (targetVideoId != lastWatcherVideoId) {
+                            sponsorBlockRepository.loadSegments(targetVideoId)
+                            lastWatcherVideoId = targetVideoId
+                        }
+
+                        // Strict Source-Based Skip Logic
+                        if (controller.isPlaying) {
+                            // Skip only if the last seek was not from user, or if user immunity period (500ms) has expired
+                            val isUserImmunityActive = lastSeekSource == SeekSource.USER &&
+                                    (System.currentTimeMillis() - lastManualSeekTimestamp < 500)
+
+                            if (!isUserImmunityActive) {
+                                val skipToSeconds = sponsorBlockRepository.checkSkip(currentPos / 1000f)
+                                if (skipToSeconds != null) {
+                                    // Found a segment and user is not scrubbing -> INSTANT SKIP
+                                    sponsorBlockSeek((skipToSeconds * 1000).toLong())
+                                }
+                            }
+                        }
+                    }
+
+                    // Save playback state every ~5 seconds (100 iterations * 50ms = 5s)
                     saveCounter++
-                    if (saveCounter >= 20) {
+                    if (saveCounter >= 100) {
                         saveCounter = 0
                         saveCurrentPlaybackState()
                     }
@@ -666,7 +737,7 @@ class MusicPlayer @Inject constructor(
                         musicHapticsManager.processAmplitude(simulatedAmplitude)
                     }
                 }
-                delay(50) // Faster update for haptics
+                delay(50)
             }
         }
     }
@@ -758,8 +829,8 @@ class MusicPlayer @Inject constructor(
                     else -> {
                         if (isVideoMode) {
                             // Smart Video Matching for Preload
-                            val videoId = resolvedVideoIds[nextSong.id] ?: youTubeRepository.getBestVideoId(nextSong).also { 
-                                resolvedVideoIds.put(nextSong.id, it) 
+                            val videoId = resolvedVideoIds[nextSong.id] ?: youTubeRepository.getBestVideoId(nextSong).also {
+                                resolvedVideoIds.put(nextSong.id, it)
                             }
                             youTubeRepository.getVideoStreamUrl(videoId)
                         } else {
@@ -878,8 +949,8 @@ class MusicPlayer @Inject constructor(
             else -> {
                 if (resolveStream) {
                     if (_playerState.value.isVideoMode) {
-                        val videoId = resolvedVideoIds[song.id] ?: youTubeRepository.getBestVideoId(song).also { 
-                            resolvedVideoIds.put(song.id, it) 
+                        val videoId = resolvedVideoIds[song.id] ?: youTubeRepository.getBestVideoId(song).also {
+                            resolvedVideoIds.put(song.id, it)
                         }
                         youTubeRepository.getVideoStreamUrl(videoId) ?: ""
                     } else {
@@ -927,6 +998,11 @@ class MusicPlayer @Inject constructor(
     }
     
     fun seekTo(position: Long) {
+        // Tag this as a USER seek so the automated loop knows to respect it
+        lastSeekSource = SeekSource.USER
+        lastManualSeekTimestamp = System.currentTimeMillis()
+
+        // Perform standard seek without pre-checks (Architecture shift: Loop handles intelligence)
         mediaController?.seekTo(position)
     }
     
@@ -963,7 +1039,7 @@ class MusicPlayer @Inject constructor(
                      val updatedState = _playerState.value
                      val updatedQueue = updatedState.queue
                      val updatedIndex = updatedState.currentIndex
-                     
+
                      // If queue has more songs now, play the next one
                      if (updatedIndex + 1 < updatedQueue.size) {
                          playSong(updatedQueue[updatedIndex + 1], updatedQueue, updatedIndex + 1)
@@ -1215,8 +1291,8 @@ class MusicPlayer @Inject constructor(
                     // Video ID determination with Smart Match
                     val videoId = if (song.source == SongSource.YOUTUBE) {
                          // Check cache or resolve smart match
-                         resolvedVideoIds[song.id] ?: youTubeRepository.getBestVideoId(song).also { 
-                             resolvedVideoIds.put(song.id, it) 
+                         resolvedVideoIds[song.id] ?: youTubeRepository.getBestVideoId(song).also {
+                             resolvedVideoIds.put(song.id, it)
                          }
                     } else {
                         // For non-YouTube songs (JioSaavn), we can also try to find a video
@@ -1249,12 +1325,12 @@ class MusicPlayer @Inject constructor(
                 
                 if (streamUrl == null) {
                     // Fallback - revert state
-                    _playerState.update { 
+                    _playerState.update {
                         it.copy(
-                            isLoading = false, 
+                            isLoading = false,
                             isVideoMode = if (newVideoMode) false else !newVideoMode,
-                            videoNotFound = newVideoMode 
-                        ) 
+                            videoNotFound = newVideoMode
+                        )
                     }
                     return@launch
                 }
@@ -1342,7 +1418,7 @@ class MusicPlayer @Inject constructor(
                     .replace("sddefault", "maxresdefault")
                     .replace("default", "maxresdefault")
                     .replace(Regex("w\\d+-h\\d+"), "w544-h544")
-                it.contains("lh3.googleusercontent.com") -> 
+                it.contains("lh3.googleusercontent.com") ->
                     it.replace(Regex("=w\\d+-h\\d+"), "=w544-h544")
                       .replace(Regex("=s\\d+"), "=s544")
                 else -> it

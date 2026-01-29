@@ -5,6 +5,7 @@ import com.google.gson.Gson
 import com.suvojeet.suvmusic.data.SessionManager
 import com.suvojeet.suvmusic.data.repository.JioSaavnRepository
 import com.suvojeet.suvmusic.data.repository.LocalAudioRepository
+import com.suvojeet.suvmusic.data.repository.SponsorBlockRepository
 import com.suvojeet.suvmusic.data.repository.UpdateRepository
 import com.suvojeet.suvmusic.data.repository.YouTubeRepository
 import com.suvojeet.suvmusic.player.MusicPlayer
@@ -129,9 +130,10 @@ object AppModule {
         listeningHistoryRepository: com.suvojeet.suvmusic.data.repository.ListeningHistoryRepository,
         cache: androidx.media3.datasource.cache.Cache,
         @PlayerDataSource dataSourceFactory: androidx.media3.datasource.DataSource.Factory,
-        musicHapticsManager: com.suvojeet.suvmusic.util.MusicHapticsManager
+        musicHapticsManager: com.suvojeet.suvmusic.util.MusicHapticsManager,
+        sponsorBlockRepository: SponsorBlockRepository
     ): MusicPlayer {
-        return MusicPlayer(context, youTubeRepository, jioSaavnRepository, sessionManager, sleepTimerManager, listeningHistoryRepository, cache, dataSourceFactory, musicHapticsManager)
+        return MusicPlayer(context, youTubeRepository, jioSaavnRepository, sessionManager, sleepTimerManager, listeningHistoryRepository, cache, dataSourceFactory, musicHapticsManager, sponsorBlockRepository)
     }
     @Provides
     @Singleton
