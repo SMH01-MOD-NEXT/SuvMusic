@@ -16,8 +16,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.suvojeet.suvmusic.data.model.DeviceType
-import com.suvojeet.suvmusic.data.model.OutputDevice
+import com.suvojeet.suvmusic.model.DeviceType
+import com.suvojeet.suvmusic.model.OutputDevice
 import androidx.compose.runtime.LaunchedEffect
 
 @OptIn(ExperimentalMaterial3Api::class)

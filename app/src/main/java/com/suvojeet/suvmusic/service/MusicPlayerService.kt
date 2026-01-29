@@ -19,7 +19,7 @@ import androidx.media3.common.MediaMetadata
 import com.google.common.collect.ImmutableList
 import com.suvojeet.suvmusic.data.repository.DownloadRepository
 import com.suvojeet.suvmusic.data.repository.LocalAudioRepository
-import com.suvojeet.suvmusic.data.model.SongSource
+import com.suvojeet.suvmusic.model.SongSource
 import com.suvojeet.suvmusic.MainActivity
 import com.suvojeet.suvmusic.data.SessionManager
 import com.suvojeet.suvmusic.data.repository.SponsorBlockRepository
@@ -72,7 +72,7 @@ class MusicPlayerService : MediaLibraryService() {
     private val SEARCH_PREFIX = "search_"
     
     // Cache for Home Sections to handle "SECTION_Index" lookup
-    private var cachedHomeSections: List<com.suvojeet.suvmusic.data.model.HomeSection> = emptyList()
+    private var cachedHomeSections: List<com.suvojeet.suvmusic.model.HomeSection> = emptyList()
 
     private val serviceScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main + kotlinx.coroutines.SupervisorJob())
     private var loudnessEnhancer: android.media.audiofx.LoudnessEnhancer? = null
@@ -261,11 +261,11 @@ class MusicPlayerService : MediaLibraryService() {
                                     if (index != null && index in cachedHomeSections.indices) {
                                         val section = cachedHomeSections[index]
                                         section.items.forEach { homeItem ->
-                                             if (homeItem is com.suvojeet.suvmusic.data.model.HomeItem.SongItem) {
+                                             if (homeItem is com.suvojeet.suvmusic.model.HomeItem.SongItem) {
                                                  children.add(createPlayableMediaItem(homeItem.song))
-                                             } else if (homeItem is com.suvojeet.suvmusic.data.model.HomeItem.PlaylistItem) {
+                                             } else if (homeItem is com.suvojeet.suvmusic.model.HomeItem.PlaylistItem) {
                                                  children.add(createBrowsableMediaItem("playlist_${homeItem.playlist.id}", homeItem.playlist.name))
-                                             } else if (homeItem is com.suvojeet.suvmusic.data.model.HomeItem.AlbumItem) {
+                                             } else if (homeItem is com.suvojeet.suvmusic.model.HomeItem.AlbumItem) {
                                                  children.add(createBrowsableMediaItem("album_${homeItem.album.id}", homeItem.album.title))
                                              }
                                         }
@@ -592,7 +592,7 @@ class MusicPlayerService : MediaLibraryService() {
             .build()
     }
 
-    private fun createPlayableMediaItem(song: com.suvojeet.suvmusic.data.model.Song): MediaItem {
+    private fun createPlayableMediaItem(song: com.suvojeet.suvmusic.model.Song): MediaItem {
         // Use correct properties based on Song model
         val artworkUri = if (!song.thumbnailUrl.isNullOrEmpty()) {
             Uri.parse(song.thumbnailUrl)

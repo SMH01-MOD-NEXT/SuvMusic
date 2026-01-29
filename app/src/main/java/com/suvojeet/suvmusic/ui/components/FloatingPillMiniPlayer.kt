@@ -40,11 +40,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.suvojeet.suvmusic.data.model.PlayerState
+import com.suvojeet.suvmusic.model.PlayerState
 
 @Composable
 fun FloatingPillMiniPlayer(
-    song: com.suvojeet.suvmusic.data.model.Song,
+    song: com.suvojeet.suvmusic.model.Song,
     playerState: PlayerState,
     dominantColors: DominantColors,
     modifier: Modifier = Modifier,

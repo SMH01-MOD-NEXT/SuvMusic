@@ -17,3 +17,4 @@ dependencyResolutionManagement {
 rootProject.name = "SuvMusic"
 include(":app")
 include(":providers")
+include(":model")

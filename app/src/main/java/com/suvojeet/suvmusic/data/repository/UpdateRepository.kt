@@ -6,7 +6,7 @@ import android.os.Build
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.suvojeet.suvmusic.BuildConfig
-import com.suvojeet.suvmusic.data.model.AppUpdate
+import com.suvojeet.suvmusic.model.AppUpdate
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

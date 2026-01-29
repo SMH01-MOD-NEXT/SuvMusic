@@ -2,9 +2,9 @@ package com.suvojeet.suvmusic.data.repository.youtube.search
 
 import com.suvojeet.suvmusic.data.SessionManager
 import com.suvojeet.suvmusic.data.YouTubeAuthUtils
-import com.suvojeet.suvmusic.data.model.Artist
-import com.suvojeet.suvmusic.data.model.Playlist
-import com.suvojeet.suvmusic.data.model.Song
+import com.suvojeet.suvmusic.model.Artist
+import com.suvojeet.suvmusic.model.Playlist
+import com.suvojeet.suvmusic.model.Song
 import com.suvojeet.suvmusic.data.repository.youtube.internal.YouTubeJsonParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -153,7 +153,7 @@ class YouTubeSearchService @Inject constructor(
     /**
      * Search for albums on YouTube Music.
      */
-    suspend fun searchAlbums(query: String): List<com.suvojeet.suvmusic.data.model.Album> = withContext(Dispatchers.IO) {
+    suspend fun searchAlbums(query: String): List<com.suvojeet.suvmusic.model.Album> = withContext(Dispatchers.IO) {
         try {
             val ytService = ServiceList.all().find { it.serviceInfo.name == "YouTube" } 
                 ?: return@withContext emptyList()
@@ -166,7 +166,7 @@ class YouTubeSearchService @Inject constructor(
                     val albumId = item.url?.substringAfter("list=")?.substringBefore("&")
                     if (albumId.isNullOrBlank()) return@mapNotNull null
                     
-                    com.suvojeet.suvmusic.data.model.Album(
+                    com.suvojeet.suvmusic.model.Album(
                         id = albumId,
                         title = item.name ?: "Unknown Album",
                         artist = item.uploaderName ?: "Unknown Artist",

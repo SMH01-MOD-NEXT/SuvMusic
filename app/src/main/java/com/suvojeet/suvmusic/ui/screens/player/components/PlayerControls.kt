@@ -38,7 +38,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.suvojeet.suvmusic.data.model.RepeatMode
+import com.suvojeet.suvmusic.model.RepeatMode
 import com.suvojeet.suvmusic.ui.components.DominantColors
 
 /**

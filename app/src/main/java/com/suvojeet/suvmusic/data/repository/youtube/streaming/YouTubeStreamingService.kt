@@ -2,7 +2,7 @@ package com.suvojeet.suvmusic.data.repository.youtube.streaming
 
 import android.util.LruCache
 import com.suvojeet.suvmusic.data.SessionManager
-import com.suvojeet.suvmusic.data.model.Song
+import com.suvojeet.suvmusic.model.Song
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.schabi.newpipe.extractor.ServiceList
@@ -76,9 +76,9 @@ class YouTubeStreamingService @Inject constructor(
             
             val audioStreams = streamExtractor.audioStreams
             val targetBitrate = when (sessionManager.getAudioQuality()) {
-                com.suvojeet.suvmusic.data.model.AudioQuality.LOW -> 64
-                com.suvojeet.suvmusic.data.model.AudioQuality.MEDIUM -> 128
-                com.suvojeet.suvmusic.data.model.AudioQuality.HIGH -> 256
+                com.suvojeet.suvmusic.model.AudioQuality.LOW -> 64
+                com.suvojeet.suvmusic.model.AudioQuality.MEDIUM -> 128
+                com.suvojeet.suvmusic.model.AudioQuality.HIGH -> 256
             }
             
             val bestAudioStream = audioStreams
@@ -208,7 +208,7 @@ class YouTubeStreamingService @Inject constructor(
                 album = "", // Not available from stream extractor
                 thumbnailUrl = thumbnailUrl,
                 duration = duration,
-                source = com.suvojeet.suvmusic.data.model.SongSource.YOUTUBE
+                source = com.suvojeet.suvmusic.model.SongSource.YOUTUBE
             )
         }
     }

@@ -61,7 +61,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.suvojeet.suvmusic.data.model.PlayerState
+import com.suvojeet.suvmusic.model.PlayerState
 import kotlin.math.roundToInt
 
 /**
@@ -139,7 +139,7 @@ fun MiniPlayer(
         // Get style
         val context = androidx.compose.ui.platform.LocalContext.current
         val sessionManager = remember { com.suvojeet.suvmusic.data.SessionManager(context) }
-        val miniPlayerStyle by sessionManager.miniPlayerStyleFlow.collectAsState(initial = com.suvojeet.suvmusic.data.model.MiniPlayerStyle.STANDARD)
+        val miniPlayerStyle by sessionManager.miniPlayerStyleFlow.collectAsState(initial = com.suvojeet.suvmusic.model.MiniPlayerStyle.STANDARD)
 
         val animatedProgress by animateFloatAsState(
             targetValue = progressProvider(),
@@ -147,7 +147,7 @@ fun MiniPlayer(
             label = "progress"
         )
         
-        if (miniPlayerStyle == com.suvojeet.suvmusic.data.model.MiniPlayerStyle.FLOATING_PILL) {
+        if (miniPlayerStyle == com.suvojeet.suvmusic.model.MiniPlayerStyle.FLOATING_PILL) {
             FloatingPillMiniPlayer(
                 song = song,
                 playerState = playerState,
@@ -184,7 +184,7 @@ fun MiniPlayer(
 
 @Composable
 private fun StandardMiniPlayer(
-    song: com.suvojeet.suvmusic.data.model.Song,
+    song: com.suvojeet.suvmusic.model.Song,
     playerState: PlayerState,
     dominantColors: DominantColors,
     modifier: Modifier = Modifier,

@@ -31,9 +31,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.suvojeet.suvmusic.data.model.DownloadState
-import com.suvojeet.suvmusic.data.model.Song
-import com.suvojeet.suvmusic.data.model.SongSource
+import com.suvojeet.suvmusic.model.DownloadState
+import com.suvojeet.suvmusic.model.Song
+import com.suvojeet.suvmusic.model.SongSource
 import com.suvojeet.suvmusic.ui.components.DominantColors
 import com.suvojeet.suvmusic.ui.screens.player.formatDuration
 

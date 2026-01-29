@@ -13,7 +13,7 @@ import android.provider.Settings
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import com.suvojeet.suvmusic.R
-import com.suvojeet.suvmusic.data.model.Song
+import com.suvojeet.suvmusic.model.Song
 import com.suvojeet.suvmusic.data.repository.YouTubeRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

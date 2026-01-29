@@ -70,11 +70,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.suvojeet.suvmusic.R
-import com.suvojeet.suvmusic.data.model.Album
-import com.suvojeet.suvmusic.data.model.Artist
-import com.suvojeet.suvmusic.data.model.ArtistPreview
-import com.suvojeet.suvmusic.data.model.Playlist
-import com.suvojeet.suvmusic.data.model.Song
+import com.suvojeet.suvmusic.model.Album
+import com.suvojeet.suvmusic.model.Artist
+import com.suvojeet.suvmusic.model.ArtistPreview
+import com.suvojeet.suvmusic.model.Playlist
+import com.suvojeet.suvmusic.model.Song
 import com.suvojeet.suvmusic.ui.viewmodel.ArtistError
 import com.suvojeet.suvmusic.ui.viewmodel.ArtistViewModel
 import androidx.compose.material.icons.filled.Add
