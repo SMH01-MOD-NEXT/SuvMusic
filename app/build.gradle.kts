@@ -188,4 +188,5 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
     implementation(project(":providers"))
+    implementation(project(":model"))
 }

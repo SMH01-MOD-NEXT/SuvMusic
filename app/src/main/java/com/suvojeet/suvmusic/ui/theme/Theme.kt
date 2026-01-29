@@ -17,7 +17,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-import com.suvojeet.suvmusic.data.model.AppTheme
+import com.suvojeet.suvmusic.model.AppTheme
 
 /**
  * Dark color scheme - Primary for SuvMusic (Default/Purple)

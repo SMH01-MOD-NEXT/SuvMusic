@@ -43,8 +43,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.suvojeet.suvmusic.data.SessionManager
-import com.suvojeet.suvmusic.data.model.AppTheme
-import com.suvojeet.suvmusic.data.model.ThemeMode
+import com.suvojeet.suvmusic.model.AppTheme
+import com.suvojeet.suvmusic.model.ThemeMode
 import com.suvojeet.suvmusic.navigation.Destination
 import com.suvojeet.suvmusic.navigation.NavGraph
 import com.suvojeet.suvmusic.ui.components.ExpressiveBottomNav
@@ -55,7 +55,7 @@ import com.suvojeet.suvmusic.ui.screens.player.components.SystemVolumeObserver
 import com.suvojeet.suvmusic.ui.theme.SuvMusicTheme
 import com.suvojeet.suvmusic.ui.viewmodel.PlayerViewModel
 import com.suvojeet.suvmusic.ui.viewmodel.MainViewModel
-import com.suvojeet.suvmusic.data.model.UpdateState
+import com.suvojeet.suvmusic.model.UpdateState
 import com.suvojeet.suvmusic.ui.components.UpdateAvailableDialog
 import com.suvojeet.suvmusic.ui.components.DownloadProgressDialog
 import com.suvojeet.suvmusic.ui.components.UpdateErrorDialog
@@ -347,7 +347,7 @@ fun SuvMusicApp(
     val mainUiState by mainViewModel.uiState.collectAsState()
     
     // Optimized states to reduce recompositions
-    val playbackInfo by playerViewModel.playbackInfo.collectAsState(initial = com.suvojeet.suvmusic.data.model.PlayerState())
+    val playbackInfo by playerViewModel.playbackInfo.collectAsState(initial = com.suvojeet.suvmusic.model.PlayerState())
     val playerState by playerViewModel.playerState.collectAsState() // Still needed for some components
     
     val lyrics by playerViewModel.lyricsState.collectAsState()

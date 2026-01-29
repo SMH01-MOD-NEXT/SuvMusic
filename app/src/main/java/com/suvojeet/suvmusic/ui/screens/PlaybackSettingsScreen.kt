@@ -55,10 +55,10 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.suvojeet.suvmusic.data.model.AudioQuality
-import com.suvojeet.suvmusic.data.model.DownloadQuality
-import com.suvojeet.suvmusic.data.model.HapticsIntensity
-import com.suvojeet.suvmusic.data.model.HapticsMode
+import com.suvojeet.suvmusic.model.AudioQuality
+import com.suvojeet.suvmusic.model.DownloadQuality
+import com.suvojeet.suvmusic.model.HapticsIntensity
+import com.suvojeet.suvmusic.model.HapticsMode
 import com.suvojeet.suvmusic.data.MusicSource
 import com.suvojeet.suvmusic.ui.viewmodel.SettingsViewModel
 import com.suvojeet.suvmusic.util.MusicHapticsManager

@@ -3,8 +3,8 @@ package com.suvojeet.suvmusic.ui.viewmodel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.suvojeet.suvmusic.data.model.Playlist
-import com.suvojeet.suvmusic.data.model.Song
+import com.suvojeet.suvmusic.model.Playlist
+import com.suvojeet.suvmusic.model.Song
 import com.suvojeet.suvmusic.data.repository.LibraryRepository
 import com.suvojeet.suvmusic.data.repository.YouTubeRepository
 import com.suvojeet.suvmusic.navigation.Destination
@@ -28,7 +28,7 @@ data class PlaylistUiState(
     val deleteSuccess: Boolean = false,
     val isLoggedIn: Boolean = false,
     val isSaved: Boolean = false,
-    val userPlaylists: List<com.suvojeet.suvmusic.data.model.PlaylistDisplayItem> = emptyList(),
+    val userPlaylists: List<com.suvojeet.suvmusic.model.PlaylistDisplayItem> = emptyList(),
     val isLoadingPlaylists: Boolean = false,
     val showAddToPlaylistSheet: Boolean = false,
     val selectedSong: Song? = null

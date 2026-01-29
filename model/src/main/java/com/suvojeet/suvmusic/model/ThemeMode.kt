@@ -1,4 +1,4 @@
-package com.suvojeet.suvmusic.data.model
+package com.suvojeet.suvmusic.model
 
 /**
  * Theme modes available in the app.

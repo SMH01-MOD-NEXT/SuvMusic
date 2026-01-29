@@ -22,10 +22,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.suvojeet.suvmusic.data.model.Album
-import com.suvojeet.suvmusic.data.model.HomeItem
-import com.suvojeet.suvmusic.data.model.PlaylistDisplayItem
-import com.suvojeet.suvmusic.data.model.Song
+import com.suvojeet.suvmusic.model.Album
+import com.suvojeet.suvmusic.model.HomeItem
+import com.suvojeet.suvmusic.model.PlaylistDisplayItem
+import com.suvojeet.suvmusic.model.Song
 
 @Composable
 fun HomeItemCard(

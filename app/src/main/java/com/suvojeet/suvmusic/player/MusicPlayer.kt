@@ -13,11 +13,11 @@ import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
 import com.suvojeet.suvmusic.data.SessionManager
-import com.suvojeet.suvmusic.data.model.DownloadState
-import com.suvojeet.suvmusic.data.model.PlayerState
-import com.suvojeet.suvmusic.data.model.RepeatMode
-import com.suvojeet.suvmusic.data.model.Song
-import com.suvojeet.suvmusic.data.model.SongSource
+import com.suvojeet.suvmusic.model.DownloadState
+import com.suvojeet.suvmusic.model.PlayerState
+import com.suvojeet.suvmusic.model.RepeatMode
+import com.suvojeet.suvmusic.model.Song
+import com.suvojeet.suvmusic.model.SongSource
 import com.suvojeet.suvmusic.data.repository.JioSaavnRepository
 import com.suvojeet.suvmusic.data.repository.ListeningHistoryRepository
 import com.suvojeet.suvmusic.data.repository.YouTubeRepository
@@ -36,8 +36,8 @@ import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import androidx.mediarouter.media.MediaRouter
 import androidx.mediarouter.media.MediaRouteSelector
-import com.suvojeet.suvmusic.data.model.DeviceType
-import com.suvojeet.suvmusic.data.model.OutputDevice
+import com.suvojeet.suvmusic.model.DeviceType
+import com.suvojeet.suvmusic.model.OutputDevice
 import com.suvojeet.suvmusic.util.MusicHapticsManager
 import javax.inject.Inject
 import javax.inject.Singleton

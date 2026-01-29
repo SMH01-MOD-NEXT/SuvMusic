@@ -43,9 +43,9 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.suvojeet.suvmusic.data.model.HomeItem
-import com.suvojeet.suvmusic.data.model.PlaylistDisplayItem
-import com.suvojeet.suvmusic.data.model.Song
+import com.suvojeet.suvmusic.model.HomeItem
+import com.suvojeet.suvmusic.model.PlaylistDisplayItem
+import com.suvojeet.suvmusic.model.Song
 import com.suvojeet.suvmusic.ui.components.HomeLoadingSkeleton
 import com.suvojeet.suvmusic.ui.theme.GlassPurple
 import com.suvojeet.suvmusic.ui.viewmodel.HomeViewModel
@@ -58,7 +58,7 @@ import java.util.Calendar
 fun HomeScreen(
     onSongClick: (List<Song>, Int) -> Unit,
     onPlaylistClick: (PlaylistDisplayItem) -> Unit,
-    onAlbumClick: (com.suvojeet.suvmusic.data.model.Album) -> Unit,
+    onAlbumClick: (com.suvojeet.suvmusic.model.Album) -> Unit,
     onRecentsClick: () -> Unit = {},
     onExploreClick: (String, String) -> Unit = { _, _ -> },
     onStartRadio: () -> Unit = {},
@@ -126,7 +126,7 @@ fun HomeScreen(
                         // Sections Loop
                         items(uiState.homeSections) { section ->
                             when (section.type) {
-                                com.suvojeet.suvmusic.data.model.HomeSectionType.LargeCardWithList -> {
+                                com.suvojeet.suvmusic.model.HomeSectionType.LargeCardWithList -> {
                                     com.suvojeet.suvmusic.ui.components.LargeCardWithListSection(
                                         section = section,
                                         onSongClick = onSongClick,
@@ -134,7 +134,7 @@ fun HomeScreen(
                                         onAlbumClick = onAlbumClick
                                     )
                                 }
-                                com.suvojeet.suvmusic.data.model.HomeSectionType.Grid -> {
+                                com.suvojeet.suvmusic.model.HomeSectionType.Grid -> {
                                     com.suvojeet.suvmusic.ui.components.GridSection(
                                         section = section,
                                         onSongClick = onSongClick,
@@ -142,7 +142,7 @@ fun HomeScreen(
                                         onAlbumClick = onAlbumClick
                                     )
                                 }
-                                com.suvojeet.suvmusic.data.model.HomeSectionType.VerticalList -> {
+                                com.suvojeet.suvmusic.model.HomeSectionType.VerticalList -> {
                                     com.suvojeet.suvmusic.ui.components.VerticalListSection(
                                         section = section,
                                         onSongClick = onSongClick,
@@ -150,7 +150,7 @@ fun HomeScreen(
                                         onAlbumClick = onAlbumClick
                                     )
                                 }
-                                com.suvojeet.suvmusic.data.model.HomeSectionType.HorizontalCarousel -> {
+                                com.suvojeet.suvmusic.model.HomeSectionType.HorizontalCarousel -> {
                                     // Custom implementation for unified styling inside HomeScreen or component usage
                                     // We can just use the component or inline if we want to restyle strictly 
                                     // But typically HorizontalCarouselSection uses standard cards.
@@ -162,7 +162,7 @@ fun HomeScreen(
                                         onAlbumClick = onAlbumClick
                                     )
                                 }
-                                com.suvojeet.suvmusic.data.model.HomeSectionType.CommunityCarousel -> {
+                                com.suvojeet.suvmusic.model.HomeSectionType.CommunityCarousel -> {
                                     com.suvojeet.suvmusic.ui.components.CommunityCarouselSection(
                                         section = section,
                                         onSongClick = onSongClick,
@@ -174,7 +174,7 @@ fun HomeScreen(
                                         }
                                     )
                                 }
-                                com.suvojeet.suvmusic.data.model.HomeSectionType.ExploreGrid -> {
+                                com.suvojeet.suvmusic.model.HomeSectionType.ExploreGrid -> {
                                     com.suvojeet.suvmusic.ui.components.ExploreGridSection(
                                         section = section,
                                         onExploreItemClick = onExploreClick

@@ -12,10 +12,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.suvojeet.suvmusic.data.SessionManager
-import com.suvojeet.suvmusic.data.model.Song
-import com.suvojeet.suvmusic.data.model.Artist
-import com.suvojeet.suvmusic.data.model.Album
-import com.suvojeet.suvmusic.data.model.PlayerState
+import com.suvojeet.suvmusic.model.Song
+import com.suvojeet.suvmusic.model.Artist
+import com.suvojeet.suvmusic.model.Album
+import com.suvojeet.suvmusic.model.PlayerState
 import com.suvojeet.suvmusic.ui.screens.AboutScreen
 import com.suvojeet.suvmusic.ui.screens.HowItWorksScreen
 import com.suvojeet.suvmusic.ui.screens.AppearanceSettingsScreen
@@ -67,13 +67,13 @@ fun NavGraph(
     onLoadMoreRadioSongs: () -> Unit = {},
     isRadioMode: Boolean = false,
     isLoadingMoreSongs: Boolean = false,
-    onSwitchDevice: (com.suvojeet.suvmusic.data.model.OutputDevice) -> Unit = {},
+    onSwitchDevice: (com.suvojeet.suvmusic.model.OutputDevice) -> Unit = {},
     onRefreshDevices: () -> Unit = {},
     onSetPlaybackParameters: (Float, Float) -> Unit = { _, _ -> },
     player: Player? = null,
     lyrics: com.suvojeet.suvmusic.providers.lyrics.Lyrics?,
     isFetchingLyrics: Boolean,
-    comments: List<com.suvojeet.suvmusic.data.model.Comment>?,
+    comments: List<com.suvojeet.suvmusic.model.Comment>?,
     isFetchingComments: Boolean,
     isLoggedIn: Boolean = false,
     isPostingComment: Boolean = false,

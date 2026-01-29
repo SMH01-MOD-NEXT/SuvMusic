@@ -7,7 +7,7 @@ import android.os.Build
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.suvojeet.suvmusic.data.model.UpdateState
+import com.suvojeet.suvmusic.model.UpdateState
 import com.suvojeet.suvmusic.data.repository.UpdateRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext

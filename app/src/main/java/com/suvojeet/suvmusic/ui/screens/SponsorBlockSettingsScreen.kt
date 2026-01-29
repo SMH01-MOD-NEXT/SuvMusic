@@ -44,7 +44,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.suvojeet.suvmusic.data.model.SponsorCategory
+import com.suvojeet.suvmusic.model.SponsorCategory
 import com.suvojeet.suvmusic.ui.viewmodel.SettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)

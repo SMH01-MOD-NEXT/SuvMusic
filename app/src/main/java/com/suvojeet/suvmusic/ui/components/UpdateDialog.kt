@@ -48,7 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.suvojeet.suvmusic.data.model.AppUpdate
+import com.suvojeet.suvmusic.model.AppUpdate
 
 // --- Shared Glass Dialog Component ---
 @Composable

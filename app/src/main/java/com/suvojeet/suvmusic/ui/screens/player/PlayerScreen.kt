@@ -78,7 +78,7 @@ import android.media.AudioManager
 import android.provider.Settings
 import android.widget.Toast
 import com.suvojeet.suvmusic.providers.lyrics.Lyrics
-import com.suvojeet.suvmusic.data.model.PlayerState
+import com.suvojeet.suvmusic.model.PlayerState
 import com.suvojeet.suvmusic.data.SessionManager
 import com.suvojeet.suvmusic.player.SleepTimerOption
 import com.suvojeet.suvmusic.ui.components.AddToPlaylistSheet
@@ -140,7 +140,7 @@ fun PlayerScreen(
     isLoadingMoreSongs: Boolean = false,
     player: Player? = null,
     onPlayFromQueue: (Int) -> Unit = {},
-    onSwitchDevice: (com.suvojeet.suvmusic.data.model.OutputDevice) -> Unit = {},
+    onSwitchDevice: (com.suvojeet.suvmusic.model.OutputDevice) -> Unit = {},
     onRefreshDevices: () -> Unit = {},
     onArtistClick: (String) -> Unit = {},
     onAlbumClick: (String) -> Unit = {},
@@ -148,7 +148,7 @@ fun PlayerScreen(
     onSetPlaybackParameters: (Float, Float) -> Unit = { _, _ -> },
     lyrics: Lyrics? = null,
     isFetchingLyrics: Boolean = false,
-    comments: List<com.suvojeet.suvmusic.data.model.Comment>? = null,
+    comments: List<com.suvojeet.suvmusic.model.Comment>? = null,
     isFetchingComments: Boolean = false,
     isLoggedIn: Boolean = false,
     isPostingComment: Boolean = false,
@@ -605,7 +605,7 @@ fun PlayerScreen(
                                     onCastClick = { showOutputDeviceSheet = true },
                                     onQueueClick = { showQueue = true },
                                     dominantColors = dominantColors,
-                                    isYouTubeSong = song?.source == com.suvojeet.suvmusic.data.model.SongSource.YOUTUBE,
+                                    isYouTubeSong = song?.source == com.suvojeet.suvmusic.model.SongSource.YOUTUBE,
                                     isVideoMode = playerState.isVideoMode,
                                     onVideoToggle = onToggleVideoMode
                                 )
@@ -787,7 +787,7 @@ fun PlayerScreen(
                                 onCastClick = { showOutputDeviceSheet = true },
                                 onQueueClick = { showQueue = true },
                                 dominantColors = dominantColors,
-                                isYouTubeSong = song?.source == com.suvojeet.suvmusic.data.model.SongSource.YOUTUBE,
+                                isYouTubeSong = song?.source == com.suvojeet.suvmusic.model.SongSource.YOUTUBE,
                                 isVideoMode = playerState.isVideoMode,
                                 onVideoToggle = onToggleVideoMode
                             )
@@ -898,7 +898,7 @@ fun PlayerScreen(
                 song = song,
                 isVisible = showActionsSheet,
                 onDismiss = { showActionsSheet = false },
-                isDownloaded = playerState.downloadState == com.suvojeet.suvmusic.data.model.DownloadState.DOWNLOADED,
+                isDownloaded = playerState.downloadState == com.suvojeet.suvmusic.model.DownloadState.DOWNLOADED,
                 onToggleFavorite = onToggleLike,
                 onToggleDislike = onToggleDislike,
                 isFavorite = playerState.isLiked,

@@ -1,4 +1,4 @@
-package com.suvojeet.suvmusic.data.model
+package com.suvojeet.suvmusic.model
 
 /**
  * Represents an app update available from GitHub Releases.

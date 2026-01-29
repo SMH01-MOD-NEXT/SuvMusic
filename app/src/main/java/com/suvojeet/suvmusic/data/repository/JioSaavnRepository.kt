@@ -3,8 +3,8 @@ package com.suvojeet.suvmusic.data.repository
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
-import com.suvojeet.suvmusic.data.model.Playlist
-import com.suvojeet.suvmusic.data.model.Song
+import com.suvojeet.suvmusic.model.Playlist
+import com.suvojeet.suvmusic.model.Song
 import com.suvojeet.suvmusic.util.SecureConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -89,7 +89,7 @@ class JioSaavnRepository @Inject constructor(
     /**
      * Search for artists on JioSaavn.
      */
-    suspend fun searchArtists(query: String): List<com.suvojeet.suvmusic.data.model.Artist> = withContext(Dispatchers.IO) {
+    suspend fun searchArtists(query: String): List<com.suvojeet.suvmusic.model.Artist> = withContext(Dispatchers.IO) {
         try {
             val url = "$BASE_URL?__call=search.getArtistResults&_format=json&n=5&q=${query.encodeUrl()}"
             val response = makeRequest(url)
@@ -102,7 +102,7 @@ class JioSaavnRepository @Inject constructor(
                 val name = artist.get("name")?.asString ?: artist.get("title")?.asString ?: ""
                 val image = artist.get("image")?.asString?.toHighResImage()
                 
-                com.suvojeet.suvmusic.data.model.Artist(
+                com.suvojeet.suvmusic.model.Artist(
                     id = id,
                     name = name.decodeHtml(),
                     thumbnailUrl = image
@@ -117,7 +117,7 @@ class JioSaavnRepository @Inject constructor(
     /**
      * Get artist details by ID.
      */
-    suspend fun getArtist(artistId: String): com.suvojeet.suvmusic.data.model.Artist? = withContext(Dispatchers.IO) {
+    suspend fun getArtist(artistId: String): com.suvojeet.suvmusic.model.Artist? = withContext(Dispatchers.IO) {
         try {
             // Try fetching artist details using webapi.get
             // JioSaavn uses a "token" (which is the ID we get from search) or a permalink
@@ -142,10 +142,10 @@ class JioSaavnRepository @Inject constructor(
                 val albumImage = obj.get("image")?.asString?.toHighResImage()
                 val year = obj.get("year")?.asString
                 
-                com.suvojeet.suvmusic.data.model.Album(albumId, title.decodeHtml(), name.decodeHtml(), albumImage, year)
+                com.suvojeet.suvmusic.model.Album(albumId, title.decodeHtml(), name.decodeHtml(), albumImage, year)
             } ?: emptyList()
             
-            com.suvojeet.suvmusic.data.model.Artist(
+            com.suvojeet.suvmusic.model.Artist(
                 id = artistId,
                 name = name.decodeHtml(),
                 thumbnailUrl = image,
@@ -506,8 +506,8 @@ class JioSaavnRepository @Inject constructor(
      * Get home sections with dynamic content from JioSaavn Launch Data.
      * This provides a "For You" experience with Trending, Charts, New Releases, and customized modules.
      */
-    suspend fun getHomeSections(): List<com.suvojeet.suvmusic.data.model.HomeSection> = withContext(Dispatchers.IO) {
-        val sections = mutableListOf<com.suvojeet.suvmusic.data.model.HomeSection>()
+    suspend fun getHomeSections(): List<com.suvojeet.suvmusic.model.HomeSection> = withContext(Dispatchers.IO) {
+        val sections = mutableListOf<com.suvojeet.suvmusic.model.HomeSection>()
         
         try {
             // Use the main launch data endpoint for dynamic homepage structure
@@ -516,14 +516,14 @@ class JioSaavnRepository @Inject constructor(
             val json = JsonParser.parseString(response).asJsonObject
             
             // Helper to parse a list of items based on their type
-            fun parseHomeItems(jsonArray: com.google.gson.JsonArray): List<com.suvojeet.suvmusic.data.model.HomeItem> {
+            fun parseHomeItems(jsonArray: com.google.gson.JsonArray): List<com.suvojeet.suvmusic.model.HomeItem> {
                 return jsonArray.mapNotNull { element ->
                     val obj = element.asJsonObject
                     val type = obj.get("type")?.asString ?: ""
                     
                     when (type) {
                         "song" -> {
-                            parseSong(obj)?.let { com.suvojeet.suvmusic.data.model.HomeItem.SongItem(it) }
+                            parseSong(obj)?.let { com.suvojeet.suvmusic.model.HomeItem.SongItem(it) }
                         }
                         "album" -> {
                             val id = obj.get("id")?.asString ?: return@mapNotNull null
@@ -532,8 +532,8 @@ class JioSaavnRepository @Inject constructor(
                             val artist = obj.get("primary_artists")?.asString ?: obj.get("music")?.asString ?: ""
                             val year = obj.get("year")?.asString
                             
-                            com.suvojeet.suvmusic.data.model.HomeItem.AlbumItem(
-                                com.suvojeet.suvmusic.data.model.Album(id, title.decodeHtml(), artist.decodeHtml(), image, year)
+                            com.suvojeet.suvmusic.model.HomeItem.AlbumItem(
+                                com.suvojeet.suvmusic.model.Album(id, title.decodeHtml(), artist.decodeHtml(), image, year)
                             )
                         }
                         "playlist" -> {
@@ -542,8 +542,8 @@ class JioSaavnRepository @Inject constructor(
                             val image = obj.get("image")?.asString?.toHighResImage()
                             val count = obj.get("song_count")?.asInt ?: obj.get("count")?.asInt ?: 0
                             
-                            com.suvojeet.suvmusic.data.model.HomeItem.PlaylistItem(
-                                com.suvojeet.suvmusic.data.model.PlaylistDisplayItem(id, title.decodeHtml(), "", "JioSaavn", image, count)
+                            com.suvojeet.suvmusic.model.HomeItem.PlaylistItem(
+                                com.suvojeet.suvmusic.model.PlaylistDisplayItem(id, title.decodeHtml(), "", "JioSaavn", image, count)
                             )
                         }
                         "chart" -> {
@@ -552,8 +552,8 @@ class JioSaavnRepository @Inject constructor(
                             val image = obj.get("image")?.asString?.toHighResImage()
                             val count = obj.get("count")?.asInt ?: 0
                             
-                            com.suvojeet.suvmusic.data.model.HomeItem.PlaylistItem(
-                                com.suvojeet.suvmusic.data.model.PlaylistDisplayItem(id, title.decodeHtml(), "", "JioSaavn Chart", image, count)
+                            com.suvojeet.suvmusic.model.HomeItem.PlaylistItem(
+                                com.suvojeet.suvmusic.model.PlaylistDisplayItem(id, title.decodeHtml(), "", "JioSaavn Chart", image, count)
                             )
                         }
                         "radio_station" -> {
@@ -561,16 +561,16 @@ class JioSaavnRepository @Inject constructor(
                             val title = obj.get("title")?.asString ?: "Radio"
                             val image = obj.get("image")?.asString?.toHighResImage()
                             
-                            com.suvojeet.suvmusic.data.model.HomeItem.PlaylistItem(
-                                com.suvojeet.suvmusic.data.model.PlaylistDisplayItem("radio_$id", title.decodeHtml(), "", "Radio", image, 0)
+                            com.suvojeet.suvmusic.model.HomeItem.PlaylistItem(
+                                com.suvojeet.suvmusic.model.PlaylistDisplayItem("radio_$id", title.decodeHtml(), "", "Radio", image, 0)
                             )
                         }
                         "artist" -> {
                              val id = obj.get("id")?.asString ?: return@mapNotNull null
                             val title = obj.get("title")?.asString ?: obj.get("name")?.asString ?: ""
                             val image = obj.get("image")?.asString?.toHighResImage()
-                             com.suvojeet.suvmusic.data.model.HomeItem.ArtistItem(
-                                com.suvojeet.suvmusic.data.model.Artist(id, title.decodeHtml(), image)
+                             com.suvojeet.suvmusic.model.HomeItem.ArtistItem(
+                                com.suvojeet.suvmusic.model.Artist(id, title.decodeHtml(), image)
                             )
                         }
                         else -> null
@@ -583,7 +583,7 @@ class JioSaavnRepository @Inject constructor(
                 val trendingList = json.getAsJsonArray("new_trending")
                 val items = parseHomeItems(trendingList)
                 if (items.isNotEmpty()) {
-                    sections.add(com.suvojeet.suvmusic.data.model.HomeSection("Trending Now 🔥", items))
+                    sections.add(com.suvojeet.suvmusic.model.HomeSection("Trending Now 🔥", items))
                 }
             }
             
@@ -592,7 +592,7 @@ class JioSaavnRepository @Inject constructor(
                 val chartsList = json.getAsJsonArray("charts")
                 val items = parseHomeItems(chartsList)
                 if (items.isNotEmpty()) {
-                    sections.add(com.suvojeet.suvmusic.data.model.HomeSection("Top Charts 📊", items))
+                    sections.add(com.suvojeet.suvmusic.model.HomeSection("Top Charts 📊", items))
                 }
             }
             
@@ -601,7 +601,7 @@ class JioSaavnRepository @Inject constructor(
                 val albumsList = json.getAsJsonArray("new_albums")
                 val items = parseHomeItems(albumsList)
                 if (items.isNotEmpty()) {
-                    sections.add(com.suvojeet.suvmusic.data.model.HomeSection("New Releases 🆕", items))
+                    sections.add(com.suvojeet.suvmusic.model.HomeSection("New Releases 🆕", items))
                 }
             }
             
@@ -616,7 +616,7 @@ class JioSaavnRepository @Inject constructor(
                     if (!title.isNullOrBlank() && data != null && data.size() > 0) {
                         val items = parseHomeItems(data)
                         if (items.isNotEmpty()) {
-                            sections.add(com.suvojeet.suvmusic.data.model.HomeSection(title.decodeHtml(), items))
+                            sections.add(com.suvojeet.suvmusic.model.HomeSection(title.decodeHtml(), items))
                         }
                     }
                 }
@@ -627,7 +627,7 @@ class JioSaavnRepository @Inject constructor(
                 val radioList = json.getAsJsonArray("radio")
                 val items = parseHomeItems(radioList)
                 if (items.isNotEmpty()) {
-                    sections.add(com.suvojeet.suvmusic.data.model.HomeSection("Radio Stations 📻", items))
+                    sections.add(com.suvojeet.suvmusic.model.HomeSection("Radio Stations 📻", items))
                 }
             }
             
@@ -636,7 +636,7 @@ class JioSaavnRepository @Inject constructor(
                 val plList = json.getAsJsonArray("top_playlists")
                 val items = parseHomeItems(plList)
                 if (items.isNotEmpty()) {
-                    sections.add(com.suvojeet.suvmusic.data.model.HomeSection("Featured Playlists 🎧", items))
+                    sections.add(com.suvojeet.suvmusic.model.HomeSection("Featured Playlists 🎧", items))
                 }
             }
 
@@ -655,8 +655,8 @@ class JioSaavnRepository @Inject constructor(
     /**
      * Fallback: Get home sections with manual fetches if Launch Data fails.
      */
-    private suspend fun fetchStaticHomeSections(): List<com.suvojeet.suvmusic.data.model.HomeSection> = withContext(Dispatchers.IO) {
-        val sections = mutableListOf<com.suvojeet.suvmusic.data.model.HomeSection>()
+    private suspend fun fetchStaticHomeSections(): List<com.suvojeet.suvmusic.model.HomeSection> = withContext(Dispatchers.IO) {
+        val sections = mutableListOf<com.suvojeet.suvmusic.model.HomeSection>()
         
         try {
             // 1. Top Charts / Trending - Using content.getCharts
@@ -675,8 +675,8 @@ class JioSaavnRepository @Inject constructor(
                         val image = chartObj.get("image")?.asString?.toHighResImage()
                         val songCount = chartObj.get("count")?.asInt ?: chartObj.get("songs_count")?.asInt ?: 0
                         
-                        com.suvojeet.suvmusic.data.model.HomeItem.PlaylistItem(
-                            com.suvojeet.suvmusic.data.model.PlaylistDisplayItem(
+                        com.suvojeet.suvmusic.model.HomeItem.PlaylistItem(
+                            com.suvojeet.suvmusic.model.PlaylistDisplayItem(
                                 id = chartId,
                                 name = title.decodeHtml(),
                                 url = "",
@@ -687,7 +687,7 @@ class JioSaavnRepository @Inject constructor(
                         )
                     }
                     if (chartItems.isNotEmpty()) {
-                        sections.add(com.suvojeet.suvmusic.data.model.HomeSection("Top Charts 📊", chartItems))
+                        sections.add(com.suvojeet.suvmusic.model.HomeSection("Top Charts 📊", chartItems))
                     }
                 }
             } catch (e: Exception) { android.util.Log.e("JioSaavn", "Charts fetch error", e) }
@@ -718,8 +718,8 @@ class JioSaavnRepository @Inject constructor(
                         val image = albumObj.get("image")?.asString?.toHighResImage()
                         val year = albumObj.get("year")?.asString
                         
-                        com.suvojeet.suvmusic.data.model.HomeItem.AlbumItem(
-                            com.suvojeet.suvmusic.data.model.Album(
+                        com.suvojeet.suvmusic.model.HomeItem.AlbumItem(
+                            com.suvojeet.suvmusic.model.Album(
                                 id = albumId,
                                 title = title.decodeHtml(),
                                 artist = artist.decodeHtml(),
@@ -729,7 +729,7 @@ class JioSaavnRepository @Inject constructor(
                         )
                     }
                     if (albumItems.isNotEmpty()) {
-                        sections.add(com.suvojeet.suvmusic.data.model.HomeSection("New Releases 🆕", albumItems))
+                        sections.add(com.suvojeet.suvmusic.model.HomeSection("New Releases 🆕", albumItems))
                     }
                 }
             } catch (e: Exception) { android.util.Log.e("JioSaavn", "New releases fetch error", e) }
@@ -751,10 +751,10 @@ class JioSaavnRepository @Inject constructor(
                 if (songsList != null && songsList.size() > 0) {
                     val songItems = songsList.take(12).mapNotNull { songElement ->
                         val song = parseSong(songElement.asJsonObject) ?: return@mapNotNull null
-                        com.suvojeet.suvmusic.data.model.HomeItem.SongItem(song)
+                        com.suvojeet.suvmusic.model.HomeItem.SongItem(song)
                     }
                     if (songItems.isNotEmpty()) {
-                        sections.add(com.suvojeet.suvmusic.data.model.HomeSection("Trending Now 🔥", songItems))
+                        sections.add(com.suvojeet.suvmusic.model.HomeSection("Trending Now 🔥", songItems))
                     }
                 }
             } catch (e: Exception) { android.util.Log.e("JioSaavn", "Trending songs fetch error", e) }
@@ -785,8 +785,8 @@ class JioSaavnRepository @Inject constructor(
                         val image = plObj.get("image")?.asString?.toHighResImage()
                         val songCount = plObj.get("count")?.asInt ?: plObj.get("songs_count")?.asInt ?: 0
                         
-                        com.suvojeet.suvmusic.data.model.HomeItem.PlaylistItem(
-                            com.suvojeet.suvmusic.data.model.PlaylistDisplayItem(
+                        com.suvojeet.suvmusic.model.HomeItem.PlaylistItem(
+                            com.suvojeet.suvmusic.model.PlaylistDisplayItem(
                                 id = plId,
                                 name = name.decodeHtml(),
                                 url = "",
@@ -797,7 +797,7 @@ class JioSaavnRepository @Inject constructor(
                         )
                     }
                     if (playlistItems.isNotEmpty()) {
-                        sections.add(com.suvojeet.suvmusic.data.model.HomeSection("Featured Playlists 🎧", playlistItems))
+                        sections.add(com.suvojeet.suvmusic.model.HomeSection("Featured Playlists 🎧", playlistItems))
                     }
                 }
             } catch (e: Exception) { android.util.Log.e("JioSaavn", "Featured playlists fetch error", e) }
@@ -822,8 +822,8 @@ class JioSaavnRepository @Inject constructor(
                             ?: artistObj.get("title")?.asString ?: "Artist"
                         val image = artistObj.get("image")?.asString?.toHighResImage()
                         
-                        com.suvojeet.suvmusic.data.model.HomeItem.ArtistItem(
-                            com.suvojeet.suvmusic.data.model.Artist(
+                        com.suvojeet.suvmusic.model.HomeItem.ArtistItem(
+                            com.suvojeet.suvmusic.model.Artist(
                                 id = artistId,
                                 name = name.decodeHtml(),
                                 thumbnailUrl = image
@@ -831,7 +831,7 @@ class JioSaavnRepository @Inject constructor(
                         )
                     }
                     if (artistItems.isNotEmpty()) {
-                        sections.add(com.suvojeet.suvmusic.data.model.HomeSection("Top Artists 🎤", artistItems))
+                        sections.add(com.suvojeet.suvmusic.model.HomeSection("Top Artists 🎤", artistItems))
                     }
                 }
             } catch (e: Exception) { android.util.Log.e("JioSaavn", "Artists fetch error", e) }
@@ -862,8 +862,8 @@ class JioSaavnRepository @Inject constructor(
                         val image = albumObj.get("image")?.asString?.toHighResImage()
                         val year = albumObj.get("year")?.asString
                         
-                        com.suvojeet.suvmusic.data.model.HomeItem.AlbumItem(
-                            com.suvojeet.suvmusic.data.model.Album(
+                        com.suvojeet.suvmusic.model.HomeItem.AlbumItem(
+                            com.suvojeet.suvmusic.model.Album(
                                 id = albumId,
                                 title = title.decodeHtml(),
                                 artist = artist.decodeHtml(),
@@ -873,7 +873,7 @@ class JioSaavnRepository @Inject constructor(
                         )
                     }
                     if (albumItems.isNotEmpty()) {
-                        sections.add(com.suvojeet.suvmusic.data.model.HomeSection("Popular Albums 💿", albumItems))
+                        sections.add(com.suvojeet.suvmusic.model.HomeSection("Popular Albums 💿", albumItems))
                     }
                 }
             } catch (e: Exception) { android.util.Log.e("JioSaavn", "Trending albums fetch error", e) }
@@ -901,8 +901,8 @@ class JioSaavnRepository @Inject constructor(
                             ?: radioObj.get("title")?.asString ?: "Radio"
                         val image = radioObj.get("image")?.asString?.toHighResImage()
                         
-                        com.suvojeet.suvmusic.data.model.HomeItem.PlaylistItem(
-                            com.suvojeet.suvmusic.data.model.PlaylistDisplayItem(
+                        com.suvojeet.suvmusic.model.HomeItem.PlaylistItem(
+                            com.suvojeet.suvmusic.model.PlaylistDisplayItem(
                                 id = "radio_$radioId",
                                 name = name.decodeHtml(),
                                 url = "",
@@ -913,7 +913,7 @@ class JioSaavnRepository @Inject constructor(
                         )
                     }
                     if (radioItems.isNotEmpty()) {
-                        sections.add(com.suvojeet.suvmusic.data.model.HomeSection("Radio Stations 📻", radioItems))
+                        sections.add(com.suvojeet.suvmusic.model.HomeSection("Radio Stations 📻", radioItems))
                     }
                 }
             } catch (e: Exception) { android.util.Log.e("JioSaavn", "Radio stations fetch error", e) }
@@ -928,8 +928,8 @@ class JioSaavnRepository @Inject constructor(
     /**
      * Get featured/trending playlists from JioSaavn for the library.
      */
-    suspend fun getFeaturedPlaylists(): List<com.suvojeet.suvmusic.data.model.PlaylistDisplayItem> = withContext(Dispatchers.IO) {
-        val playlists = mutableListOf<com.suvojeet.suvmusic.data.model.PlaylistDisplayItem>()
+    suspend fun getFeaturedPlaylists(): List<com.suvojeet.suvmusic.model.PlaylistDisplayItem> = withContext(Dispatchers.IO) {
+        val playlists = mutableListOf<com.suvojeet.suvmusic.model.PlaylistDisplayItem>()
         
         try {
             // Fetch top charts/featured playlists
@@ -957,7 +957,7 @@ class JioSaavnRepository @Inject constructor(
                 
                 if (plId != null) {
                     playlists.add(
-                        com.suvojeet.suvmusic.data.model.PlaylistDisplayItem(
+                        com.suvojeet.suvmusic.model.PlaylistDisplayItem(
                             id = plId,
                             name = name.decodeHtml(),
                             url = "",
@@ -986,7 +986,7 @@ class JioSaavnRepository @Inject constructor(
                         val songCount = plObj.get("count")?.asInt ?: 0
                         
                         playlists.add(
-                            com.suvojeet.suvmusic.data.model.PlaylistDisplayItem(
+                            com.suvojeet.suvmusic.model.PlaylistDisplayItem(
                                 id = plId,
                                 name = name.decodeHtml(),
                                 url = "",
@@ -1125,7 +1125,7 @@ class JioSaavnRepository @Inject constructor(
                     val artist = obj.get("music")?.asString ?: "" // 'music' key usually holds artist in autocomplete
                     val year = obj.get("year")?.asString
                     
-                    com.suvojeet.suvmusic.data.model.Album(id, title.decodeHtml(), artist.decodeHtml(), image, year)
+                    com.suvojeet.suvmusic.model.Album(id, title.decodeHtml(), artist.decodeHtml(), image, year)
                 }
             } else emptyList()
             
@@ -1137,7 +1137,7 @@ class JioSaavnRepository @Inject constructor(
                     val title = obj.get("title")?.asString ?: obj.get("name")?.asString ?: ""
                     val image = obj.get("image")?.asString?.toHighResImage()
                     
-                    com.suvojeet.suvmusic.data.model.Artist(id, title.decodeHtml(), image)
+                    com.suvojeet.suvmusic.model.Artist(id, title.decodeHtml(), image)
                 }
             } else emptyList()
             
@@ -1171,7 +1171,7 @@ class JioSaavnRepository @Inject constructor(
 
 data class SearchResults(
     val songs: List<Song> = emptyList(),
-    val albums: List<com.suvojeet.suvmusic.data.model.Album> = emptyList(),
-    val artists: List<com.suvojeet.suvmusic.data.model.Artist> = emptyList(),
+    val albums: List<com.suvojeet.suvmusic.model.Album> = emptyList(),
+    val artists: List<com.suvojeet.suvmusic.model.Artist> = emptyList(),
     val playlists: List<Playlist> = emptyList()
 )

@@ -1,4 +1,4 @@
-package com.suvojeet.suvmusic.data.model.lastfm
+package com.suvojeet.suvmusic.model.lastfm
 
 import kotlinx.serialization.Serializable
 

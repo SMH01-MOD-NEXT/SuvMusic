@@ -122,7 +122,7 @@ fun CustomizationScreen(
     }
 
     val miniPlayerAlpha by sessionManager.miniPlayerAlphaFlow.collectAsState(initial = 1f)
-    val currentMiniPlayerStyle by sessionManager.miniPlayerStyleFlow.collectAsState(initial = com.suvojeet.suvmusic.data.model.MiniPlayerStyle.STANDARD)
+    val currentMiniPlayerStyle by sessionManager.miniPlayerStyleFlow.collectAsState(initial = com.suvojeet.suvmusic.model.MiniPlayerStyle.STANDARD)
 
     val scope = rememberCoroutineScope()
     
@@ -142,7 +142,7 @@ fun CustomizationScreen(
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
                 
-                com.suvojeet.suvmusic.data.model.MiniPlayerStyle.entries.forEach { style ->
+                com.suvojeet.suvmusic.model.MiniPlayerStyle.entries.forEach { style ->
                     androidx.compose.material3.ListItem(
                         headlineContent = { Text(style.label) },
                         leadingContent = {

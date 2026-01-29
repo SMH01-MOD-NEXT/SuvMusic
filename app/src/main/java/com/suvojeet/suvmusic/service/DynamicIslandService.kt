@@ -24,7 +24,7 @@ import coil.ImageLoader
 import coil.request.ImageRequest
 import com.suvojeet.suvmusic.R
 import com.suvojeet.suvmusic.data.SessionManager
-import com.suvojeet.suvmusic.data.model.PlayerState
+import com.suvojeet.suvmusic.model.PlayerState
 import com.suvojeet.suvmusic.player.MusicPlayer
 import com.suvojeet.suvmusic.ui.components.SeekbarStyle
 import com.suvojeet.suvmusic.ui.views.DynamicSeekbarView

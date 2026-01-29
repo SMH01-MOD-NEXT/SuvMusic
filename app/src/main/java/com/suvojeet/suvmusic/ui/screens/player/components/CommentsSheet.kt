@@ -25,7 +25,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.suvojeet.suvmusic.data.model.Comment
+import com.suvojeet.suvmusic.model.Comment
 import com.suvojeet.suvmusic.ui.components.PulseLoadingIndicator
 
 @OptIn(ExperimentalMaterial3Api::class)

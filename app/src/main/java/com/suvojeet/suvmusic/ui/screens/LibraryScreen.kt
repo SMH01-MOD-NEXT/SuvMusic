@@ -54,10 +54,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.suvojeet.suvmusic.data.model.PlaylistDisplayItem
-import com.suvojeet.suvmusic.data.model.Song
-import com.suvojeet.suvmusic.data.model.Artist
-import com.suvojeet.suvmusic.data.model.Album
+import com.suvojeet.suvmusic.model.PlaylistDisplayItem
+import com.suvojeet.suvmusic.model.Song
+import com.suvojeet.suvmusic.model.Artist
+import com.suvojeet.suvmusic.model.Album
 import com.suvojeet.suvmusic.ui.components.CreatePlaylistDialog
 import com.suvojeet.suvmusic.ui.screens.ImportPlaylistScreen
 import com.suvojeet.suvmusic.ui.components.MusicCard

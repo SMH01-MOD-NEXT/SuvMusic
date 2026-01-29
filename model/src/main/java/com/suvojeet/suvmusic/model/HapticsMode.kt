@@ -1,4 +1,4 @@
-package com.suvojeet.suvmusic.data.model
+package com.suvojeet.suvmusic.model
 
 /**
  * Defines the haptic feedback mode for Music Haptics feature.

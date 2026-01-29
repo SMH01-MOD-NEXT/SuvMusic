@@ -66,10 +66,10 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.suvojeet.suvmusic.data.model.AppTheme
+import com.suvojeet.suvmusic.model.AppTheme
 import com.suvojeet.suvmusic.providers.lyrics.LyricsAnimationType
 import com.suvojeet.suvmusic.providers.lyrics.LyricsTextPosition
-import com.suvojeet.suvmusic.data.model.ThemeMode
+import com.suvojeet.suvmusic.model.ThemeMode
 import com.suvojeet.suvmusic.ui.viewmodel.SettingsViewModel
 import kotlinx.coroutines.launch
 

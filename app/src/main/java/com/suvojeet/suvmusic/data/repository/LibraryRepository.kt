@@ -3,10 +3,10 @@ package com.suvojeet.suvmusic.data.repository
 import com.suvojeet.suvmusic.data.local.dao.LibraryDao
 import com.suvojeet.suvmusic.data.local.entity.LibraryEntity
 import com.suvojeet.suvmusic.data.local.entity.PlaylistSongEntity
-import com.suvojeet.suvmusic.data.model.Album
-import com.suvojeet.suvmusic.data.model.Playlist
-import com.suvojeet.suvmusic.data.model.Song
-import com.suvojeet.suvmusic.data.model.SongSource
+import com.suvojeet.suvmusic.model.Album
+import com.suvojeet.suvmusic.model.Playlist
+import com.suvojeet.suvmusic.model.Song
+import com.suvojeet.suvmusic.model.SongSource
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject

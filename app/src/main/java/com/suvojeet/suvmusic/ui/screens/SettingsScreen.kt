@@ -78,7 +78,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
-import com.suvojeet.suvmusic.data.model.UpdateState
+import com.suvojeet.suvmusic.model.UpdateState
 import com.suvojeet.suvmusic.service.DynamicIslandService
 import com.suvojeet.suvmusic.ui.components.CheckingUpdateDialog
 import com.suvojeet.suvmusic.ui.components.DownloadProgressDialog

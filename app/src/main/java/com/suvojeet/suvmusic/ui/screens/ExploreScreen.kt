@@ -13,9 +13,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.suvojeet.suvmusic.data.model.Album
-import com.suvojeet.suvmusic.data.model.PlaylistDisplayItem
-import com.suvojeet.suvmusic.data.model.Song
+import com.suvojeet.suvmusic.model.Album
+import com.suvojeet.suvmusic.model.PlaylistDisplayItem
+import com.suvojeet.suvmusic.model.Song
 import com.suvojeet.suvmusic.ui.components.*
 import com.suvojeet.suvmusic.ui.viewmodel.ExploreViewModel
 
@@ -80,7 +80,7 @@ fun ExploreScreen(
                     ) {
                         items(uiState.sections) { section ->
                             when (section.type) {
-                                com.suvojeet.suvmusic.data.model.HomeSectionType.LargeCardWithList -> {
+                                com.suvojeet.suvmusic.model.HomeSectionType.LargeCardWithList -> {
                                     LargeCardWithListSection(
                                         section = section,
                                         onSongClick = onSongClick,
@@ -88,7 +88,7 @@ fun ExploreScreen(
                                         onAlbumClick = onAlbumClick
                                     )
                                 }
-                                com.suvojeet.suvmusic.data.model.HomeSectionType.Grid -> {
+                                com.suvojeet.suvmusic.model.HomeSectionType.Grid -> {
                                     GridSection(
                                         section = section,
                                         onSongClick = onSongClick,
@@ -96,7 +96,7 @@ fun ExploreScreen(
                                         onAlbumClick = onAlbumClick
                                     )
                                 }
-                                com.suvojeet.suvmusic.data.model.HomeSectionType.VerticalList -> {
+                                com.suvojeet.suvmusic.model.HomeSectionType.VerticalList -> {
                                     VerticalListSection(
                                         section = section,
                                         onSongClick = onSongClick,
