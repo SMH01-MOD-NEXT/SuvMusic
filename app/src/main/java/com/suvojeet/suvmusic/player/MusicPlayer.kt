@@ -57,49 +57,53 @@ class MusicPlayer @Inject constructor(
     private val listeningHistoryRepository: ListeningHistoryRepository,
     private val cache: androidx.media3.datasource.cache.Cache,
     @com.suvojeet.suvmusic.di.PlayerDataSource private val dataSourceFactory: androidx.media3.datasource.DataSource.Factory,
-    private val musicHapticsManager: MusicHapticsManager
+    private val musicHapticsManager: MusicHapticsManager,
+    private val sponsorBlockRepository: com.suvojeet.suvmusic.data.repository.SponsorBlockRepository
 ) {
-    
+
     // ... (existing properties)
 
     // Caching
     private var cachingJob: Job? = null
 
-    
+
     private val _playerState = MutableStateFlow(PlayerState())
     val playerState: StateFlow<PlayerState> = _playerState.asStateFlow()
-    
+
     private val scope = CoroutineScope(Dispatchers.Main + Job())
-    
+
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private var mediaController: MediaController? = null
-    
+
     private var positionUpdateJob: Job? = null
-    
+
     // Audio Manager for device detection
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-    
+
     // Preloading state for gapless playback
     private var preloadedNextSongId: String? = null
     private var preloadedStreamUrl: String? = null
     private var isPreloading = false
-    
+
     // Track manually selected device ID to persist selection across refreshes
     private var manualSelectedDeviceId: String? = null
-    
+
+    // Track when the user last manually seeked to prevent SponsorBlock from fighting the user
+    private var lastManualSeekTimestamp: Long = 0L
+
     // Cache for resolved video IDs for non-YouTube songs (SongId -> VideoId)
     // Fix: Unbounded Memory Leak -> Use LruCache with max size 100
     private val resolvedVideoIds = android.util.LruCache<String, String>(100)
-    
+
     // Listening history tracking
     private var currentSongStartTime: Long = 0L
     private var currentSongStartPosition: Long = 0L
-    
+
     private var deviceReceiver: android.content.BroadcastReceiver? = null
-    
+
     init {
         connectToService()
-        
+
         // Setup sleep timer callback
         sleepTimerManager.setOnTimerFinished {
             pause()
@@ -107,7 +111,7 @@ class MusicPlayer @Inject constructor(
 
         // Initial device scan
         updateAvailableDevices()
-        
+
         // Register receiver for device changes
         registerDeviceReceiver()
     }
@@ -119,7 +123,7 @@ class MusicPlayer @Inject constructor(
             addAction(android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED)
             addAction(android.bluetooth.BluetoothDevice.ACTION_ACL_DISCONNECTED)
         }
-        
+
         deviceReceiver = object : android.content.BroadcastReceiver() {
             override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
                 // Small delay to allow system to update device list
@@ -129,7 +133,7 @@ class MusicPlayer @Inject constructor(
                 }
             }
         }
-        
+
         try {
             deviceReceiver?.let { context.registerReceiver(it, filter) }
         } catch (e: Exception) {
@@ -140,11 +144,7 @@ class MusicPlayer @Inject constructor(
     private fun updateAvailableDevices() {
         refreshDevices()
     }
-    
-    /**
-     * Refresh available audio output devices.
-     * Call this when the output device sheet is opened to get latest devices.
-     */
+
     /**
      * Refresh available audio output devices.
      * Call this when the output device sheet is opened to get latest devices.
@@ -152,7 +152,7 @@ class MusicPlayer @Inject constructor(
     fun refreshDevices() {
         val rawDevices = mutableListOf<OutputDevice>()
         val audioDevices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
-        
+
         // System state for auto-selection
         val isBluetoothActive = audioManager.isBluetoothA2dpOn || audioManager.isBluetoothScoOn
         val isWiredHeadsetConnected = audioManager.isWiredHeadsetOn
@@ -164,15 +164,15 @@ class MusicPlayer @Inject constructor(
         // 2. Add other devices
         audioDevices.forEach { device ->
             val type = when (device.type) {
-                AudioDeviceInfo.TYPE_BLUETOOTH_A2DP, 
+                AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
                 AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> DeviceType.BLUETOOTH
-                AudioDeviceInfo.TYPE_WIRED_HEADPHONES, 
+                AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
                 AudioDeviceInfo.TYPE_WIRED_HEADSET,
                 AudioDeviceInfo.TYPE_USB_HEADSET -> DeviceType.HEADPHONES
                 AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> return@forEach // Already handled
                 else -> DeviceType.UNKNOWN
             }
-            
+
             // Avoid duplicates by name
             if (rawDevices.none { it.name == device.productName.toString() }) {
                 rawDevices.add(
@@ -188,7 +188,7 @@ class MusicPlayer @Inject constructor(
 
         // 3. Determine selection
         // Logic: specific manual selection > auto system selection
-        
+
         var devicesWithSelection = rawDevices.map { device ->
             val isSelected = if (manualSelectedDeviceId != null) {
                 device.id == manualSelectedDeviceId
@@ -202,12 +202,12 @@ class MusicPlayer @Inject constructor(
             }
             device.copy(isSelected = isSelected)
         }
-        
+
         // 4. Validate selection
         // If manual selection is active but the device is no longer available (not found in list),
         // or if no device is selected at all, fallback to auto/default.
         val hasSelection = devicesWithSelection.any { it.isSelected }
-        
+
         if (!hasSelection) {
             // Manual device lost or auto-logic failed -> Reset manual and use auto logic
             if (manualSelectedDeviceId != null) {
@@ -222,15 +222,15 @@ class MusicPlayer @Inject constructor(
                     device.copy(isSelected = isSelected)
                 }
             }
-            
+
             // If STILL no selection (edge case), select Phone Speaker (first)
             if (devicesWithSelection.none { it.isSelected }) {
-                devicesWithSelection = devicesWithSelection.mapIndexed { index, dev -> 
+                devicesWithSelection = devicesWithSelection.mapIndexed { index, dev ->
                     dev.copy(isSelected = index == 0)
                 }
             }
         }
-        
+
         val selectedDevice = devicesWithSelection.find { it.isSelected }
         _playerState.update { it.copy(availableDevices = devicesWithSelection, selectedDevice = selectedDevice) }
     }
@@ -238,7 +238,7 @@ class MusicPlayer @Inject constructor(
     fun switchOutputDevice(device: OutputDevice) {
         // Update manual preference
         manualSelectedDeviceId = device.id
-        
+
         // Send command to service to switch output device (ExoPlayer routing)
         val args = android.os.Bundle().apply {
             putString("DEVICE_ID", device.id)
@@ -247,24 +247,24 @@ class MusicPlayer @Inject constructor(
             androidx.media3.session.SessionCommand("SET_OUTPUT_DEVICE", android.os.Bundle.EMPTY),
             args
         )
-        
+
         // Update local state immediately to reflect selection
         refreshDevices()
     }
 
-    
+
     private fun connectToService() {
         val sessionToken = SessionToken(
             context,
             ComponentName(context, MusicPlayerService::class.java)
         )
-        
+
         controllerFuture = MediaController.Builder(context, sessionToken).buildAsync()
         controllerFuture?.addListener({
             try {
                 mediaController = controllerFuture?.get()
                 mediaController?.addListener(playerListener)
-                
+
                 // Restore state if player has media
                 if (mediaController?.mediaItemCount ?: 0 > 0) {
                     startPositionUpdates()
@@ -274,11 +274,11 @@ class MusicPlayer @Inject constructor(
             }
         }, MoreExecutors.directExecutor())
     }
-    
+
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             _playerState.update { it.copy(isPlaying = isPlaying) }
-            
+
             // Music Haptics integration
             if (isPlaying) {
                 scope.launch {
@@ -289,34 +289,34 @@ class MusicPlayer @Inject constructor(
                 musicHapticsManager.stop()
             }
         }
-        
+
         override fun onPlaybackStateChanged(playbackState: Int) {
-            _playerState.update { 
+            _playerState.update {
                 it.copy(
                     isLoading = playbackState == Player.STATE_BUFFERING,
                     error = null
                 )
             }
-            
+
             if (playbackState == Player.STATE_READY) {
                 startPositionUpdates()
                 // Update audio format info when playback is ready
                 updateAudioFormatInfo()
             }
         }
-        
+
         override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
             // Update audio format when tracks change
             updateAudioFormatInfo()
         }
-        
+
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             mediaItem?.let { item ->
                 val controller = mediaController ?: return@let
                 val index = controller.currentMediaItemIndex
                 val song = _playerState.value.queue.getOrNull(index)
-                
-                _playerState.update { 
+
+                _playerState.update {
                     it.copy(
                         currentSong = song,
                         currentIndex = index,
@@ -329,12 +329,12 @@ class MusicPlayer @Inject constructor(
                         videoNotFound = false // Reset error flag on track change
                     )
                 }
-                
+
                 // Add to recently played and track listening history
                 if (song != null) {
                     scope.launch {
                         sessionManager.addToRecentlyPlayed(song)
-                        
+
                         // Track previous song if it was playing
                         val prevSong = _playerState.value.currentSong
                         if (prevSong != null && currentSongStartTime > 0) {
@@ -342,70 +342,70 @@ class MusicPlayer @Inject constructor(
                             val wasSkipped = listenDuration < (prevSong.duration * 0.5) // Skipped if < 50% listened
                             listeningHistoryRepository.recordPlay(prevSong, listenDuration, wasSkipped)
                         }
-                        
+
                         // Start tracking new song
                         currentSongStartTime = System.currentTimeMillis()
                         currentSongStartPosition = controller.currentPosition
                     }
                 }
-                
+
                 // Handle both AUTO (song ended) and SEEK (notification next/prev) transitions
-                val shouldResolve = reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || 
-                                   reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK
-                
+                val shouldResolve = reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO ||
+                        reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK
+
                 if (shouldResolve && song != null) {
                     // Check if current item already has a resolved stream URL (from preloading)
                     val currentItem = controller.currentMediaItem
                     val currentUri = currentItem?.localConfiguration?.uri?.toString()
-                    
+
                     // Check if URI needs resolution:
                     // - YouTube placeholders: "https://youtube.com/watch?v=..."
                     // - JioSaavn/empty: null, empty, or doesn't look like a valid stream URL
                     val isYouTubePlaceholder = currentUri != null && (currentUri.contains("youtube.com/watch") || currentUri.contains("youtu.be"))
                     val isEmptyOrInvalid = currentUri.isNullOrBlank()
                     val needsResolution = isYouTubePlaceholder || isEmptyOrInvalid
-                    
+
                     if (!needsResolution && currentUri != null) {
                         // Already has valid stream, just ensure UI state is correct and play
                         _playerState.update { it.copy(isLoading = false) }
-                        
+
                         // Reset preload state as we've seemingly consumed it
                         preloadedNextSongId = null
                         preloadedStreamUrl = null
                         isPreloading = false
-                        
+
                         // Start aggressive caching for this preloaded/resolved song
                         if (song.source != SongSource.LOCAL && song.source != SongSource.DOWNLOADED) {
                             // Cancel previous job first just in case
                             cachingJob?.cancel()
                             startAggressiveCaching(song.id, currentUri)
                         }
-                        
+
                         // Ensure playback continues for SEEK transitions (notification controls)
                         if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK) {
                             controller.play()
                         }
                         return@let
                     }
-                    
+
                     // Check sleep timer (only for auto transitions)
                     val timerTriggered = if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
                         sleepTimerManager.onSongEnded()
                     } else {
                         false
                     }
-                    
+
                     scope.launch {
                         resolveAndPlayCurrentItem(song, index, shouldPlay = !timerTriggered)
                     }
                 }
             }
         }
-        
+
         override fun onPlayerError(error: PlaybackException) {
             // Log error
             android.util.Log.e("MusicPlayer", "Playback error: ${error.errorCodeName}", error)
-            
+
             // Check if error is recoverable (e.g. 403/410 HTTP error means URL expired)
             val cause = error.cause
             val isHttpError = cause is androidx.media3.datasource.HttpDataSource.HttpDataSourceException
@@ -413,47 +413,47 @@ class MusicPlayer @Inject constructor(
             val isexpiredUrl = (isHttpError && (responseCode == 403 || responseCode == 410))
             val isNetworkError = cause is java.net.UnknownHostException || cause is java.net.SocketTimeoutException
             val isDecoderError = error.errorCode == PlaybackException.ERROR_CODE_DECODING_FAILED
-            
+
             if (isexpiredUrl || isNetworkError || isDecoderError) {
                 // Try to recover by re-resolving the stream URL
                 val currentSong = _playerState.value.currentSong
-                
+
                 if (currentSong != null && currentSong.source != SongSource.LOCAL && currentSong.source != SongSource.DOWNLOADED) {
                     android.util.Log.d("MusicPlayer", "Attempting to recover from playback error for: ${currentSong.id}")
-                    
+
                     scope.launch {
                         // Fallback logic: If in Video Mode, switch to Audio Mode first
                         if (_playerState.value.isVideoMode) {
-                             android.util.Log.d("MusicPlayer", "Video playback failed, falling back to audio")
-                             _playerState.update { 
-                                 it.copy(
-                                     isVideoMode = false, 
-                                     videoNotFound = true,
-                                     error = "Video unavailable, switching to audio..."
-                                 ) 
-                             }
-                             // Clear cached video entry if it might be bad
-                             resolvedVideoIds.remove(currentSong.id)
+                            android.util.Log.d("MusicPlayer", "Video playback failed, falling back to audio")
+                            _playerState.update {
+                                it.copy(
+                                    isVideoMode = false,
+                                    videoNotFound = true,
+                                    error = "Video unavailable, switching to audio..."
+                                )
+                            }
+                            // Clear cached video entry if it might be bad
+                            resolvedVideoIds.remove(currentSong.id)
                         } else {
-                             _playerState.update { it.copy(isLoading = true, error = null) }
+                            _playerState.update { it.copy(isLoading = true, error = null) }
                         }
 
                         // Wait a bit before retrying
                         delay(1000)
-                        
+
                         // Resume from last position
                         val resumePosition = _playerState.value.currentPosition
-                        
+
                         // Re-resolve and play (force resolution)
                         try {
-                             resolveAndPlayCurrentItem(currentSong, _playerState.value.currentIndex, shouldPlay = true)
-                             
-                             // Seek to previous position once ready
-                             // We'll trust the player updates to handle seeking, but we can hint it here
-                             mediaController?.seekTo(resumePosition)
+                            resolveAndPlayCurrentItem(currentSong, _playerState.value.currentIndex, shouldPlay = true)
+
+                            // Seek to previous position once ready
+                            // We'll trust the player updates to handle seeking, but we can hint it here
+                            mediaController?.seekTo(resumePosition)
                         } catch (e: Exception) {
                             // Recovery failed
-                             _playerState.update { 
+                            _playerState.update {
                                 it.copy(
                                     error = "Playback failed: ${error.message}",
                                     isLoading = false
@@ -465,7 +465,7 @@ class MusicPlayer @Inject constructor(
                 }
             }
 
-            _playerState.update { 
+            _playerState.update {
                 it.copy(
                     error = error.message ?: "Playback error",
                     isLoading = false
@@ -473,25 +473,25 @@ class MusicPlayer @Inject constructor(
             }
         }
     }
-    
+
     private suspend fun resolveAndPlayCurrentItem(song: Song, index: Int, shouldPlay: Boolean = true) {
         try {
             _playerState.update { it.copy(isLoading = true, videoNotFound = false) }
-            
+
             // Check for Developer Mode restriction for JioSaavn
             if (song.source == SongSource.JIOSAAVN && !sessionManager.isDeveloperMode()) {
-                 _playerState.update {
+                _playerState.update {
                     it.copy(
                         error = "RESTRICTED_HQ_AUDIO",
                         isLoading = false
                     )
-                 }
-                 return
+                }
+                return
             }
-            
+
             // Cancel previous caching job
             cachingJob?.cancel()
-            
+
             // Resolve stream URL for the song based on source with timeout protection
             // Added explicit retry here in case the repository layer's retry exhausted or for other issues
             var streamUrl: String? = null
@@ -504,8 +504,8 @@ class MusicPlayer @Inject constructor(
                         else -> {
                             if (_playerState.value.isVideoMode) {
                                 // Smart Video Matching
-                                val videoId = resolvedVideoIds[song.id] ?: youTubeRepository.getBestVideoId(song).also { 
-                                    resolvedVideoIds.put(song.id, it) 
+                                val videoId = resolvedVideoIds[song.id] ?: youTubeRepository.getBestVideoId(song).also {
+                                    resolvedVideoIds.put(song.id, it)
                                 }
                                 youTubeRepository.getVideoStreamUrl(videoId)
                             } else {
@@ -519,13 +519,13 @@ class MusicPlayer @Inject constructor(
                     if (attempts < 2) delay(1000)
                 }
             }
-            
+
             // Handle null stream URL - show error and clear loading state
             if (streamUrl == null) {
                 android.util.Log.e("MusicPlayer", "Failed to resolve stream URL for: ${song.id} after retries")
-                
+
                 val isVideoMode = _playerState.value.isVideoMode
-                _playerState.update { 
+                _playerState.update {
                     it.copy(
                         error = if (!isVideoMode) "Could not load song. Please check your connection." else null,
                         videoNotFound = isVideoMode,
@@ -534,7 +534,7 @@ class MusicPlayer @Inject constructor(
                 }
                 return
             }
-            
+
             // Start aggressive caching in background
             if (song.source != SongSource.LOCAL && song.source != SongSource.DOWNLOADED) {
                 startAggressiveCaching(song.id, streamUrl)
@@ -553,7 +553,7 @@ class MusicPlayer @Inject constructor(
                         .build()
                 )
                 .build()
-            
+
             mediaController?.let { controller ->
                 // Verify that the item at this index is still the one we resolved
                 // This prevents race conditions where queue changed while we were fetching
@@ -562,21 +562,21 @@ class MusicPlayer @Inject constructor(
                     if (currentItem.mediaId == song.id) {
                         // Replace current item with resolved stream and play
                         val oldPos = controller.currentPosition // Remember pos if replacing same item (re-resolve case)
-                        
+
                         controller.replaceMediaItem(index, newMediaItem)
-                        
+
                         // If we are replacing the currently playing item
                         if (index == controller.currentMediaItemIndex) {
-                             // If resuming from error/re-resolve, restore position
-                             if (controller.playbackState == Player.STATE_IDLE || controller.playbackState == Player.STATE_ENDED) {
-                                  controller.prepare()
-                                  if (oldPos > 0) controller.seekTo(oldPos)
-                             }
-                             if (shouldPlay) {
-                                  controller.play()
-                             }
+                            // If resuming from error/re-resolve, restore position
+                            if (controller.playbackState == Player.STATE_IDLE || controller.playbackState == Player.STATE_ENDED) {
+                                controller.prepare()
+                                if (oldPos > 0) controller.seekTo(oldPos)
+                            }
+                            if (shouldPlay) {
+                                controller.play()
+                            }
                         }
-                        
+
                         // Clear loading state after successful resolution
                         _playerState.update { it.copy(isLoading = false, error = null) }
                     } else {
@@ -601,11 +601,11 @@ class MusicPlayer @Inject constructor(
                     .setKey(contentId) // Must match the player's custom cache key
                     .setFlags(androidx.media3.datasource.DataSpec.FLAG_ALLOW_CACHE_FRAGMENTATION)
                     .build()
-                
+
                 // Create a temporary CacheDataSource just for this writer
                 // We reuse the factory's upstream logic but build a new instance
                 val dataSource = dataSourceFactory.createDataSource() as? androidx.media3.datasource.cache.CacheDataSource
-                
+
                 if (dataSource != null) {
                     val cacheWriter = androidx.media3.datasource.cache.CacheWriter(
                         dataSource,
@@ -615,49 +615,93 @@ class MusicPlayer @Inject constructor(
                         // Optional: progress update
                         // val percent = if (requestLength > 0) (bytesCached * 100 / requestLength).toInt() else 0
                     }
-                    
+
                     cacheWriter.cache()
                 }
             } catch (e: Exception) {
                 // Caching failed or was cancelled - ignore
                 if (e !is kotlinx.coroutines.CancellationException) {
-                     android.util.Log.e("MusicPlayer", "Aggressive caching failed: ${e.message}")
+                    android.util.Log.e("MusicPlayer", "Aggressive caching failed: ${e.message}")
                 }
             }
         }
     }
-    
+
     private var saveCounter = 0
-    
+
     private fun startPositionUpdates() {
         positionUpdateJob?.cancel()
         saveCounter = 0
         positionUpdateJob = scope.launch {
+            // Local variable to track the last video ID processed by SponsorBlock within this watcher loop.
+            // This avoids unnecessary calls to the repository if the song hasn't changed.
+            var lastWatcherVideoId: String? = null
+
             while (true) {
                 mediaController?.let { controller ->
                     val currentPos = controller.currentPosition.coerceAtLeast(0L)
                     val duration = controller.duration.coerceAtLeast(0L)
-                    
-                    _playerState.update { 
+
+                    _playerState.update {
                         it.copy(
                             currentPosition = currentPos,
                             duration = duration,
                             bufferedPercentage = controller.bufferedPercentage
                         )
                     }
-                    
+
+                    // --- SPONSORBLOCK WATCHER START ---
+                    // Optimized: Only run skip checks every 4th cycle (approx every 200ms) to reduce CPU load.
+                    // saveCounter increments every 50ms.
+                    if (saveCounter % 4 == 0) {
+                        val currentSong = _playerState.value.currentSong
+                        if (currentSong != null) {
+                            // Determine target Video ID
+                            val targetVideoId = if (_playerState.value.isVideoMode) {
+                                resolvedVideoIds[currentSong.id]
+                            } else if (currentSong.source == SongSource.YOUTUBE) {
+                                currentSong.id
+                            } else {
+                                null
+                            }
+
+                            if (targetVideoId != null) {
+                                // OPTIMIZATION: Only call loadSegments if the ID has actually changed LOCALLY.
+                                // This prevents spamming the repository check method every cycle.
+                                if (targetVideoId != lastWatcherVideoId) {
+                                    sponsorBlockRepository.loadSegments(targetVideoId)
+                                    lastWatcherVideoId = targetVideoId
+                                }
+
+                                // Check for skip
+                                // FIX: Added manual seek cooldown.
+                                // If the user recently manually seeked (dragged the slider), pause SponsorBlock for 2 seconds
+                                // to avoid the "fighting" effect where the player jumps back/forward unexpectedly.
+                                // Also ensure player is actually playing.
+                                if (controller.isPlaying && System.currentTimeMillis() - lastManualSeekTimestamp > 2000) {
+                                    val skipToSeconds = sponsorBlockRepository.checkSkip(currentPos / 1000f)
+                                    if (skipToSeconds != null) {
+                                        controller.seekTo((skipToSeconds * 1000).toLong())
+                                        android.util.Log.d("MusicPlayer", "SponsorBlock skipped segment")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // --- SPONSORBLOCK WATCHER END ---
+
                     // Save playback state every ~5 seconds (20 iterations * 250ms = 5s)
                     saveCounter++
                     if (saveCounter >= 20) {
                         saveCounter = 0
                         saveCurrentPlaybackState()
                     }
-                    
+
                     // Check if we need to preload next song for gapless playback
                     if (sessionManager.isGaplessPlaybackEnabled()) {
                         checkPreloadNextSong(currentPos, duration)
                     }
-                    
+
                     // Music Haptics - simulate amplitude based on progress
                     // In a real implementation, this would use actual audio analysis
                     if (_playerState.value.isPlaying) {
@@ -670,7 +714,7 @@ class MusicPlayer @Inject constructor(
             }
         }
     }
-    
+
     /**
      * Save current playback state for resume functionality.
      */
@@ -678,9 +722,9 @@ class MusicPlayer @Inject constructor(
         val state = _playerState.value
         val currentSong = state.currentSong ?: return
         val queue = state.queue
-        
+
         if (queue.isEmpty()) return
-        
+
         scope.launch {
             try {
                 val queueJson = org.json.JSONArray().apply {
@@ -696,7 +740,7 @@ class MusicPlayer @Inject constructor(
                         })
                     }
                 }.toString()
-                
+
                 sessionManager.savePlaybackState(
                     songId = currentSong.id,
                     position = state.currentPosition,
@@ -708,27 +752,27 @@ class MusicPlayer @Inject constructor(
             }
         }
     }
-    
+
     /**
      * Preload next song's stream URL ahead of time for gapless playback.
      * Starts preloading ~15 seconds before current song ends.
      */
     private fun checkPreloadNextSong(currentPosition: Long, duration: Long) {
         if (isPreloading || duration <= 0) return
-        
+
         val preloadStartMs = duration - 15000L // Start preloading 15 seconds before end
         if (currentPosition < preloadStartMs) return
-        
+
         val state = _playerState.value
         val isVideoMode = state.isVideoMode
         var nextIndex = state.currentIndex + 1
-        
+
         // Handle shuffle mode
         if (state.shuffleEnabled && state.queue.size > 1) {
             // For shuffle, we can't predict the next song, so skip preloading
             return
         }
-        
+
         // Handle repeat/autoplay
         if (nextIndex >= state.queue.size) {
             if (state.repeatMode == RepeatMode.ALL) {
@@ -739,16 +783,16 @@ class MusicPlayer @Inject constructor(
                 return // No next song
             }
         }
-        
+
         val nextSong = state.queue.getOrNull(nextIndex) ?: return
-        
+
         // Check if already preloaded
-        // Important: check if preloaded type (audio/video) matches current mode? 
+        // Important: check if preloaded type (audio/video) matches current mode?
         // For simplicity, we just check ID. A mode switch usually clears preload.
         if (preloadedNextSongId == nextSong.id && preloadedStreamUrl != null) {
             return
         }
-        
+
         isPreloading = true
         scope.launch {
             try {
@@ -758,8 +802,8 @@ class MusicPlayer @Inject constructor(
                     else -> {
                         if (isVideoMode) {
                             // Smart Video Matching for Preload
-                            val videoId = resolvedVideoIds[nextSong.id] ?: youTubeRepository.getBestVideoId(nextSong).also { 
-                                resolvedVideoIds.put(nextSong.id, it) 
+                            val videoId = resolvedVideoIds[nextSong.id] ?: youTubeRepository.getBestVideoId(nextSong).also {
+                                resolvedVideoIds.put(nextSong.id, it)
                             }
                             youTubeRepository.getVideoStreamUrl(videoId)
                         } else {
@@ -767,11 +811,11 @@ class MusicPlayer @Inject constructor(
                         }
                     }
                 }
-                
+
                 if (streamUrl != null) {
                     preloadedNextSongId = nextSong.id
                     preloadedStreamUrl = streamUrl
-                    
+
                     // Update the media item in the queue with resolved URL
                     updateNextMediaItemWithPreloadedUrl(nextIndex, nextSong, streamUrl)
                 }
@@ -782,7 +826,7 @@ class MusicPlayer @Inject constructor(
             }
         }
     }
-    
+
     /**
      * Update the next media item in the player with the preloaded stream URL.
      */
@@ -802,34 +846,34 @@ class MusicPlayer @Inject constructor(
                             .build()
                     )
                     .build()
-                
+
                 // Replace the placeholder media item with resolved one
                 try {
                     controller.removeMediaItem(index)
                     controller.addMediaItem(index, newMediaItem)
                 } catch (e: Exception) {
-                   // Index might have changed or race condition
+                    // Index might have changed or race condition
                 }
             }
         }
     }
-    
+
     private var playJob: Job? = null
 
     fun playSong(song: Song, queue: List<Song> = listOf(song), startIndex: Int = 0, autoPlay: Boolean = true) {
         // Cancel any pending play request
         playJob?.cancel()
-        
+
         // IMMEDIATELY pause current playback for instant response
         mediaController?.pause()
-        
+
         // Reset preload state
         preloadedNextSongId = null
         preloadedStreamUrl = null
         isPreloading = false
-        
+
         playJob = scope.launch {
-            _playerState.update { 
+            _playerState.update {
                 it.copy(
                     queue = queue,
                     currentIndex = startIndex,
@@ -837,10 +881,10 @@ class MusicPlayer @Inject constructor(
                     isLoading = true
                 )
             }
-            
+
             try {
                 _playerState.update { it.copy(isLoading = true) }
-                
+
                 val mediaItems = queue.mapIndexed { index, s -> createMediaItem(s, index == startIndex) }
                 mediaController?.let { controller ->
                     controller.setMediaItems(mediaItems, startIndex, 0L)
@@ -858,7 +902,7 @@ class MusicPlayer @Inject constructor(
             }
         }
     }
-    
+
     private suspend fun createMediaItem(song: Song, resolveStream: Boolean = true): MediaItem {
         val uri = when (song.source) {
             SongSource.LOCAL, SongSource.DOWNLOADED -> song.localUri.toString()
@@ -878,8 +922,8 @@ class MusicPlayer @Inject constructor(
             else -> {
                 if (resolveStream) {
                     if (_playerState.value.isVideoMode) {
-                        val videoId = resolvedVideoIds[song.id] ?: youTubeRepository.getBestVideoId(song).also { 
-                            resolvedVideoIds.put(song.id, it) 
+                        val videoId = resolvedVideoIds[song.id] ?: youTubeRepository.getBestVideoId(song).also {
+                            resolvedVideoIds.put(song.id, it)
                         }
                         youTubeRepository.getVideoStreamUrl(videoId) ?: ""
                     } else {
@@ -896,7 +940,7 @@ class MusicPlayer @Inject constructor(
                 }
             }
         }
-        
+
         return MediaItem.Builder()
             .setUri(uri)
             .setMediaId(song.id)
@@ -911,25 +955,27 @@ class MusicPlayer @Inject constructor(
             )
             .build()
     }
-    
+
     fun play() {
         mediaController?.play()
     }
-    
+
     fun pause() {
         mediaController?.pause()
     }
-    
+
     fun togglePlayPause() {
         mediaController?.let { controller ->
             if (controller.isPlaying) pause() else play()
         }
     }
-    
+
     fun seekTo(position: Long) {
+        // Record timestamp of manual seek to temporarily disable SponsorBlock
+        lastManualSeekTimestamp = System.currentTimeMillis()
         mediaController?.seekTo(position)
     }
-    
+
     fun seekToNext() {
         val state = _playerState.value
         val queue = state.queue
@@ -948,39 +994,39 @@ class MusicPlayer @Inject constructor(
         } else {
             state.currentIndex + 1
         }
-        
+
         if (nextIndex in queue.indices) {
             playSong(queue[nextIndex], queue, nextIndex)
         } else {
             // End of queue logic
-             if (state.repeatMode == RepeatMode.ALL) {
-                 playSong(queue[0], queue, 0)
-             } else if (state.isAutoplayEnabled) {
-                 // Infinite Autoplay: The ViewModel automatically loads more songs when nearing the end.
-                 // Check if queue has grown (new songs added by autoplay observer)
-                 scope.launch {
-                     delay(500) // Brief delay to allow autoplay to add songs
-                     val updatedState = _playerState.value
-                     val updatedQueue = updatedState.queue
-                     val updatedIndex = updatedState.currentIndex
-                     
-                     // If queue has more songs now, play the next one
-                     if (updatedIndex + 1 < updatedQueue.size) {
-                         playSong(updatedQueue[updatedIndex + 1], updatedQueue, updatedIndex + 1)
-                     } else if (updatedQueue.size > queue.size) {
-                         // New songs were added, play the first new one
-                         val newSongIndex = queue.size
-                         if (newSongIndex < updatedQueue.size) {
-                             playSong(updatedQueue[newSongIndex], updatedQueue, newSongIndex)
-                         }
-                     }
-                     // If still no new songs, playback naturally stops (rare edge case)
-                 }
-             }
-             // Else: Stop or do nothing
+            if (state.repeatMode == RepeatMode.ALL) {
+                playSong(queue[0], queue, 0)
+            } else if (state.isAutoplayEnabled) {
+                // Infinite Autoplay: The ViewModel automatically loads more songs when nearing the end.
+                // Check if queue has grown (new songs added by autoplay observer)
+                scope.launch {
+                    delay(500) // Brief delay to allow autoplay to add songs
+                    val updatedState = _playerState.value
+                    val updatedQueue = updatedState.queue
+                    val updatedIndex = updatedState.currentIndex
+
+                    // If queue has more songs now, play the next one
+                    if (updatedIndex + 1 < updatedQueue.size) {
+                        playSong(updatedQueue[updatedIndex + 1], updatedQueue, updatedIndex + 1)
+                    } else if (updatedQueue.size > queue.size) {
+                        // New songs were added, play the first new one
+                        val newSongIndex = queue.size
+                        if (newSongIndex < updatedQueue.size) {
+                            playSong(updatedQueue[newSongIndex], updatedQueue, newSongIndex)
+                        }
+                    }
+                    // If still no new songs, playback naturally stops (rare edge case)
+                }
+            }
+            // Else: Stop or do nothing
         }
     }
-    
+
     fun seekToPrevious() {
         val state = _playerState.value
         // If played more than 3 seconds, restart current song
@@ -988,24 +1034,24 @@ class MusicPlayer @Inject constructor(
             seekTo(0)
             return
         }
-        
+
         val queue = state.queue
         if (queue.isEmpty()) return
-        
+
         val prevIndex = if (state.shuffleEnabled) {
             if (queue.size > 1) {
-                 var random = queue.indices.random() // Ideally we'd have a history stack
-                 while (random == state.currentIndex) {
-                     random = queue.indices.random()
-                 }
-                 random
-             } else 0
+                var random = queue.indices.random() // Ideally we'd have a history stack
+                while (random == state.currentIndex) {
+                    random = queue.indices.random()
+                }
+                random
+            } else 0
         } else {
             state.currentIndex - 1
         }
 
         if (prevIndex in queue.indices) {
-             playSong(queue[prevIndex], queue, prevIndex)
+            playSong(queue[prevIndex], queue, prevIndex)
         } else {
             // If at start and repeat all is on, go to end? Or just stop.
             if (state.repeatMode == RepeatMode.ALL && queue.isNotEmpty()) {
@@ -1014,7 +1060,7 @@ class MusicPlayer @Inject constructor(
             }
         }
     }
-    
+
     fun setRepeatMode(mode: RepeatMode) {
         mediaController?.repeatMode = when (mode) {
             RepeatMode.OFF -> Player.REPEAT_MODE_OFF
@@ -1023,7 +1069,7 @@ class MusicPlayer @Inject constructor(
         }
         _playerState.update { it.copy(repeatMode = mode) }
     }
-    
+
     fun toggleShuffle() {
         mediaController?.let { controller ->
             val newShuffleState = !controller.shuffleModeEnabled
@@ -1031,7 +1077,7 @@ class MusicPlayer @Inject constructor(
             _playerState.update { it.copy(shuffleEnabled = newShuffleState) }
         }
     }
-    
+
     fun toggleRepeat() {
         val currentMode = _playerState.value.repeatMode
         val nextMode = when (currentMode) {
@@ -1041,46 +1087,46 @@ class MusicPlayer @Inject constructor(
         }
         setRepeatMode(nextMode)
     }
-    
+
     fun updateLikeStatus(isLiked: Boolean) {
         _playerState.update { it.copy(isLiked = isLiked, isDisliked = if (isLiked) false else it.isDisliked) }
     }
-    
+
     fun updateDislikeStatus(isDisliked: Boolean) {
         _playerState.update { it.copy(isDisliked = isDisliked, isLiked = if (isDisliked) false else it.isLiked) }
     }
-    
+
     fun updateDownloadState(state: DownloadState) {
         _playerState.update { it.copy(downloadState = state) }
     }
-    
+
     fun updateDominantColor(color: Int) {
         _playerState.update { it.copy(dominantColor = color) }
     }
-    
+
     fun getPlayer(): Player? = mediaController
-    
+
     fun toggleAutoplay() {
         _playerState.update { it.copy(isAutoplayEnabled = !it.isAutoplayEnabled) }
     }
-    
+
     /**
      * Set playback parameters (speed and pitch).
      */
     fun setPlaybackParameters(speed: Float, pitch: Float) {
         val clampedSpeed = speed.coerceIn(0.1f, 5.0f)
         val clampedPitch = pitch.coerceIn(0.1f, 5.0f)
-        
+
         mediaController?.playbackParameters = androidx.media3.common.PlaybackParameters(clampedSpeed, clampedPitch)
-        
-        _playerState.update { 
+
+        _playerState.update {
             it.copy(
                 playbackSpeed = clampedSpeed,
                 pitch = clampedPitch
-            ) 
+            )
         }
     }
-    
+
     /**
      * Update audio format info (codec and bitrate) from the current track.
      * Called when tracks change or playback becomes ready.
@@ -1088,7 +1134,7 @@ class MusicPlayer @Inject constructor(
     private fun updateAudioFormatInfo() {
         val player = mediaController ?: return
         val tracks = player.currentTracks
-        
+
         // Find audio track group and extract format
         var audioFormat: androidx.media3.common.Format? = null
         for (group in tracks.groups) {
@@ -1103,9 +1149,9 @@ class MusicPlayer @Inject constructor(
                 if (audioFormat != null) break
             }
         }
-        
+
         if (audioFormat == null) return
-        
+
         // Extract codec from MIME type (e.g., "audio/opus" -> "opus")
         val mimeType = audioFormat.sampleMimeType ?: audioFormat.containerMimeType
         val codec = when {
@@ -1120,7 +1166,7 @@ class MusicPlayer @Inject constructor(
             mimeType?.contains("webm") == true -> "webm"
             else -> mimeType?.substringAfter("audio/")?.substringBefore(";")
         }
-        
+
         // Extract bitrate (ExoPlayer provides it in bits per second, convert to kbps)
         val bitrateKbps = if (audioFormat.bitrate > 0) {
             audioFormat.bitrate / 1000
@@ -1135,28 +1181,28 @@ class MusicPlayer @Inject constructor(
                 else -> null
             }
         }
-        
-        _playerState.update { 
+
+        _playerState.update {
             it.copy(
                 audioCodec = codec,
                 audioBitrate = bitrateKbps
             )
         }
     }
-    
+
     /**
      * Add songs to the end of the current queue.
      * Used for endless radio mode to continuously add recommendations.
      */
     fun addToQueue(songs: List<Song>) {
         if (songs.isEmpty()) return
-        
+
         scope.launch {
             val currentQueue = _playerState.value.queue.toMutableList()
             currentQueue.addAll(songs)
-            
+
             _playerState.update { it.copy(queue = currentQueue) }
-            
+
             // Add media items to player
             songs.forEach { song ->
                 val mediaItem = createMediaItem(song, resolveStream = false)
@@ -1170,20 +1216,20 @@ class MusicPlayer @Inject constructor(
      */
     fun playNext(songs: List<Song>) {
         if (songs.isEmpty()) return
-        
+
         scope.launch {
             val currentIndex = _playerState.value.currentIndex
             // If nothing playing, just add to end (which is beginning)
             val targetIndex = if (currentIndex < 0) 0 else currentIndex + 1
-            
+
             val currentQueue = _playerState.value.queue.toMutableList()
             // Safety check for index
             val safeIndex = targetIndex.coerceAtMost(currentQueue.size)
-            
+
             currentQueue.addAll(safeIndex, songs)
-            
+
             _playerState.update { it.copy(queue = currentQueue) }
-            
+
             // Add media items to player
             songs.forEachIndexed { i, song ->
                 val mediaItem = createMediaItem(song, resolveStream = false)
@@ -1191,7 +1237,7 @@ class MusicPlayer @Inject constructor(
             }
         }
     }
-    
+
     /**
      * Toggle video mode for any song.
      * Searches YouTube for video if the song is not from YouTube.
@@ -1200,13 +1246,13 @@ class MusicPlayer @Inject constructor(
     fun toggleVideoMode() {
         val state = _playerState.value
         val song = state.currentSong ?: return
-        
+
         val currentPosition = mediaController?.currentPosition ?: 0L
         val wasPlaying = mediaController?.isPlaying == true
         val newVideoMode = !state.isVideoMode
-        
+
         _playerState.update { it.copy(isLoading = true, isVideoMode = newVideoMode, videoNotFound = false) }
-        
+
         scope.launch {
             try {
                 val streamUrl = if (newVideoMode) {
@@ -1214,10 +1260,10 @@ class MusicPlayer @Inject constructor(
                     // 1. Determine Video ID
                     // Video ID determination with Smart Match
                     val videoId = if (song.source == SongSource.YOUTUBE) {
-                         // Check cache or resolve smart match
-                         resolvedVideoIds[song.id] ?: youTubeRepository.getBestVideoId(song).also { 
-                             resolvedVideoIds.put(song.id, it) 
-                         }
+                        // Check cache or resolve smart match
+                        resolvedVideoIds[song.id] ?: youTubeRepository.getBestVideoId(song).also {
+                            resolvedVideoIds.put(song.id, it)
+                        }
                     } else {
                         // For non-YouTube songs (JioSaavn), we can also try to find a video
                         resolvedVideoIds[song.id] ?: run {
@@ -1232,7 +1278,7 @@ class MusicPlayer @Inject constructor(
                             }
                         }
                     }
-                    
+
                     if (videoId != null) {
                         youTubeRepository.getVideoStreamUrl(videoId)
                     } else {
@@ -1246,19 +1292,19 @@ class MusicPlayer @Inject constructor(
                         else -> youTubeRepository.getStreamUrl(song.id)
                     }
                 }
-                
+
                 if (streamUrl == null) {
                     // Fallback - revert state
-                    _playerState.update { 
+                    _playerState.update {
                         it.copy(
-                            isLoading = false, 
+                            isLoading = false,
                             isVideoMode = if (newVideoMode) false else !newVideoMode,
-                            videoNotFound = newVideoMode 
-                        ) 
+                            videoNotFound = newVideoMode
+                        )
                     }
                     return@launch
                 }
-                
+
                 val newMediaItem = MediaItem.Builder()
                     .setUri(streamUrl)
                     .setMediaId(song.id)
@@ -1271,22 +1317,22 @@ class MusicPlayer @Inject constructor(
                             .build()
                     )
                     .build()
-                
+
                 mediaController?.let { controller ->
                     val currentIndex = controller.currentMediaItemIndex
                     if (currentIndex < controller.mediaItemCount) {
                         controller.replaceMediaItem(currentIndex, newMediaItem)
                         controller.prepare()
-                        
+
                         // Seek to preserved position
                         controller.seekTo(currentPosition)
-                        
+
                         if (wasPlaying) {
                             controller.play()
                         }
                     }
                 }
-                
+
                 _playerState.update { it.copy(isLoading = false) }
             } catch (e: Exception) {
                 android.util.Log.e("MusicPlayer", "Error toggling video mode", e)
@@ -1294,22 +1340,22 @@ class MusicPlayer @Inject constructor(
             }
         }
     }
-    
+
     fun dismissVideoError() {
         _playerState.update { it.copy(videoNotFound = false) }
     }
-    
+
     fun stop() {
         mediaController?.stop()
         mediaController?.clearMediaItems()
-        _playerState.update { 
+        _playerState.update {
             it.copy(
                 currentSong = null,
                 isPlaying = false,
                 currentPosition = 0,
                 duration = 0,
                 queue = emptyList()
-            ) 
+            )
         }
     }
 
@@ -1317,7 +1363,7 @@ class MusicPlayer @Inject constructor(
         positionUpdateJob?.cancel()
         controllerFuture?.let { MediaController.releaseFuture(it) }
         mediaController = null
-        
+
         // Unregister device receiver
         deviceReceiver?.let {
             try {
@@ -1328,7 +1374,7 @@ class MusicPlayer @Inject constructor(
             deviceReceiver = null
         }
     }
-    
+
     /**
      * Convert a YouTube thumbnail URL to high resolution for better notification artwork quality.
      * Converts hqdefault, mqdefault, sddefault to maxresdefault format.
@@ -1342,9 +1388,9 @@ class MusicPlayer @Inject constructor(
                     .replace("sddefault", "maxresdefault")
                     .replace("default", "maxresdefault")
                     .replace(Regex("w\\d+-h\\d+"), "w544-h544")
-                it.contains("lh3.googleusercontent.com") -> 
+                it.contains("lh3.googleusercontent.com") ->
                     it.replace(Regex("=w\\d+-h\\d+"), "=w544-h544")
-                      .replace(Regex("=s\\d+"), "=s544")
+                        .replace(Regex("=s\\d+"), "=s544")
                 else -> it
             }
         }
@@ -1364,7 +1410,7 @@ class MusicPlayer @Inject constructor(
             val newParameters = parameters.buildUpon()
                 .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, isBackground)
                 .build()
-            
+
             player.trackSelectionParameters = newParameters
         }
     }
