@@ -88,6 +88,9 @@ class MusicPlayer @Inject constructor(
     // Track manually selected device ID to persist selection across refreshes
     private var manualSelectedDeviceId: String? = null
 
+    // Track when the user last manually seeked to prevent SponsorBlock from fighting the user
+    private var lastManualSeekTimestamp: Long = 0L
+
     // Cache for resolved video IDs for non-YouTube songs (SongId -> VideoId)
     // Fix: Unbounded Memory Leak -> Use LruCache with max size 100
     private val resolvedVideoIds = android.util.LruCache<String, String>(100)
@@ -630,6 +633,10 @@ class MusicPlayer @Inject constructor(
         positionUpdateJob?.cancel()
         saveCounter = 0
         positionUpdateJob = scope.launch {
+            // Local variable to track the last video ID processed by SponsorBlock within this watcher loop.
+            // This avoids unnecessary calls to the repository if the song hasn't changed.
+            var lastWatcherVideoId: String? = null
+
             while (true) {
                 mediaController?.let { controller ->
                     val currentPos = controller.currentPosition.coerceAtLeast(0L)
@@ -644,32 +651,41 @@ class MusicPlayer @Inject constructor(
                     }
 
                     // --- SPONSORBLOCK WATCHER START ---
-                    // This logic ensures that even if the video reloads, buffers, or resets,
-                    // we re-trigger segment loading for the currently playing content.
-                    val currentSong = _playerState.value.currentSong
-                    if (currentSong != null) {
-                        // Determine target Video ID
-                        val targetVideoId = if (_playerState.value.isVideoMode) {
-                            resolvedVideoIds[currentSong.id]
-                        } else if (currentSong.source == SongSource.YOUTUBE) {
-                            currentSong.id // For YouTube audio, song ID is the video ID
-                        } else {
-                            null
-                        }
+                    // Optimized: Only run skip checks every 4th cycle (approx every 200ms) to reduce CPU load.
+                    // saveCounter increments every 50ms.
+                    if (saveCounter % 4 == 0) {
+                        val currentSong = _playerState.value.currentSong
+                        if (currentSong != null) {
+                            // Determine target Video ID
+                            val targetVideoId = if (_playerState.value.isVideoMode) {
+                                resolvedVideoIds[currentSong.id]
+                            } else if (currentSong.source == SongSource.YOUTUBE) {
+                                currentSong.id
+                            } else {
+                                null
+                            }
 
-                        // Ensure segments are loaded for this ID.
-                        // The repository handles de-duplication (checks lastVideoId),
-                        // so calling this in a loop is safe and robust against player resets.
-                        if (targetVideoId != null) {
-                            sponsorBlockRepository.loadSegments(targetVideoId)
-                        }
+                            if (targetVideoId != null) {
+                                // OPTIMIZATION: Only call loadSegments if the ID has actually changed LOCALLY.
+                                // This prevents spamming the repository check method every cycle.
+                                if (targetVideoId != lastWatcherVideoId) {
+                                    sponsorBlockRepository.loadSegments(targetVideoId)
+                                    lastWatcherVideoId = targetVideoId
+                                }
 
-                        // Check for skip
-                        val skipToSeconds = sponsorBlockRepository.checkSkip(currentPos / 1000f)
-                        if (skipToSeconds != null) {
-                            controller.seekTo((skipToSeconds * 1000).toLong())
-                            // Optional: Add toast or log
-                            android.util.Log.d("MusicPlayer", "SponsorBlock skipped segment")
+                                // Check for skip
+                                // FIX: Added manual seek cooldown.
+                                // If the user recently manually seeked (dragged the slider), pause SponsorBlock for 2 seconds
+                                // to avoid the "fighting" effect where the player jumps back/forward unexpectedly.
+                                // Also ensure player is actually playing.
+                                if (controller.isPlaying && System.currentTimeMillis() - lastManualSeekTimestamp > 2000) {
+                                    val skipToSeconds = sponsorBlockRepository.checkSkip(currentPos / 1000f)
+                                    if (skipToSeconds != null) {
+                                        controller.seekTo((skipToSeconds * 1000).toLong())
+                                        android.util.Log.d("MusicPlayer", "SponsorBlock skipped segment")
+                                    }
+                                }
+                            }
                         }
                     }
                     // --- SPONSORBLOCK WATCHER END ---
@@ -771,7 +787,7 @@ class MusicPlayer @Inject constructor(
         val nextSong = state.queue.getOrNull(nextIndex) ?: return
 
         // Check if already preloaded
-        // Important: check if preloaded type (audio/video) matches current mode? 
+        // Important: check if preloaded type (audio/video) matches current mode?
         // For simplicity, we just check ID. A mode switch usually clears preload.
         if (preloadedNextSongId == nextSong.id && preloadedStreamUrl != null) {
             return
@@ -955,6 +971,8 @@ class MusicPlayer @Inject constructor(
     }
 
     fun seekTo(position: Long) {
+        // Record timestamp of manual seek to temporarily disable SponsorBlock
+        lastManualSeekTimestamp = System.currentTimeMillis()
         mediaController?.seekTo(position)
     }
 
