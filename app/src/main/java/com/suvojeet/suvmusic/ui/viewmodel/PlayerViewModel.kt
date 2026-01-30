@@ -41,6 +41,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
+import com.suvojeet.suvmusic.data.CoListenManager
+import com.suvojeet.suvmusic.data.ConnectionState
 import javax.inject.Inject
 
 @HiltViewModel
@@ -52,6 +54,7 @@ class PlayerViewModel @Inject constructor(
     private val lyricsRepository: LyricsRepository,
     private val sleepTimerManager: SleepTimerManager,
     private val sessionManager: SessionManager,
+    private val coListenManager: CoListenManager,
     private val recommendationEngine: RecommendationEngine,
     private val sponsorBlockRepository: SponsorBlockRepository,
     @ApplicationContext private val context: Context
@@ -134,6 +137,7 @@ class PlayerViewModel @Inject constructor(
         observeDownloadStateConsistency()
         observeQueuePositionForAutoplay()
         observeLyricsProviderSettings()
+        observeCoListenState()
     }
     
     private fun observeDownloadStateConsistency() {
@@ -793,6 +797,123 @@ class PlayerViewModel @Inject constructor(
                 // Revert on failure
                 musicPlayer.updateDislikeStatus(currentDislikeState)
             }
+        }
+    }
+    
+    // --- Listen Together Feature ---
+    
+    val coListenSessionState = coListenManager.sessionState
+    val coListenConnectionState = coListenManager.connectionState
+    
+    fun createCoListenSession() {
+         coListenManager.createSession(
+             onSuccess = { code -> 
+                 // Success handling if needed
+             },
+             onError = { error ->
+                 // Error handling 
+             }
+         )
+    }
+    
+    fun joinCoListenSession(code: String) {
+        coListenManager.joinSession(
+            code,
+             onSuccess = { 
+                 // Success handling
+             },
+             onError = { error ->
+                 // Error handling
+             }
+        )
+    }
+    
+    fun leaveCoListenSession() {
+        coListenManager.leaveSession()
+    }
+    
+    private var isRemoteUpdate = false
+    
+    private fun observeCoListenState() {
+        // 1. Observe Remote Changes -> Update Local Player
+        viewModelScope.launch {
+            coListenManager.sessionState.collect { session ->
+                if (session == null) return@collect
+                
+                // If we are the host, we don't need to sync FROM firebase, we push TO firebase
+                // But for simplicity and consistency (and if we support multi-host later), we can check drift
+                // For now: specific rule -> Host is authority, Guests sync.
+                
+                val isHost = session.hostId == (sessionManager.getCookies()?.hashCode()?.toString() ?: "")
+                if (isHost) return@collect 
+                
+                isRemoteUpdate = true
+                try {
+                    // Sync Song
+                    val remoteSongId = session.currentSong?.id
+                    val currentSongId = playerState.value.currentSong?.id
+                    
+                    if (remoteSongId != null && remoteSongId != currentSongId) {
+                         // Need to change song. 
+                         // We need a way to get the full Song object from ID.
+                         // Ideally we'd have a repository lookup or construct from SessionSong data
+                         val sessionSong = session.currentSong
+                         val song = Song(
+                             id = sessionSong.id,
+                             title = sessionSong.title,
+                             artist = sessionSong.artist,
+                             album = sessionSong.album,
+                             thumbnailUrl = sessionSong.thumbnailUrl,
+                             duration = sessionSong.duration,
+                             source = try { SongSource.valueOf(sessionSong.source) } catch (e: Exception) { SongSource.YOUTUBE },
+                             // Other fields defaults
+                         )
+                         playSong(song)
+                    }
+                    
+                    // Sync Play/Pause
+                    if (session.isPlaying != playerState.value.isPlaying) {
+                        if (session.isPlaying) play() else pause()
+                    }
+                    
+                    // Sync Position (with drift check)
+                    val currentPos = musicPlayer.playerState.value.currentPosition
+                    val timeDiff = System.currentTimeMillis() - session.timestamp
+                    val expectedPos = session.position + (if (session.isPlaying) timeDiff else 0)
+                    
+                    if (kotlin.math.abs(currentPos - expectedPos) > 2000) { // 2 seconds leeway
+                        seekTo(expectedPos)
+                    }
+                    
+                } finally {
+                    // Reset flag after a short delay to allow player state to settle without triggering push
+                    delay(500)
+                    isRemoteUpdate = false
+                }
+            }
+        }
+        
+        // 2. Observe Local Changes -> Push to Firebase
+        viewModelScope.launch {
+             combine(
+                 playerState.map { it.currentSong }.distinctUntilChanged(),
+                 playerState.map { it.isPlaying }.distinctUntilChanged(),
+                 // We don't continuously push position, only on pause/seek/periodic? 
+                 // For now let's push on events.
+                 playerState.map { it.currentPosition }.map { it / 5000 }.distinctUntilChanged() // Throttle position updates to ~5s
+             ) { song, isPlaying, _ ->
+                 Triple(song, isPlaying, musicPlayer.playerState.value.currentPosition)
+             }.collectLatest { (song, isPlaying, position) ->
+                 if (isRemoteUpdate) return@collectLatest
+                 
+                 // Only Host pushes? Or anyone? 
+                 // Feature req: "other users ke ps bhi control hoga" -> Anyone pushes.
+                 // To avoid loops: rely on isRemoteUpdate flag and maybe debounce.
+                 
+                 if (coListenManager.connectionState.value is ConnectionState.Connected) {
+                      coListenManager.updatePlayerState(song, isPlaying, position)
+                 }
+             }
         }
     }
     

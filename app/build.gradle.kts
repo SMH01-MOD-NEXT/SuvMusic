@@ -7,7 +7,14 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.hilt.android)
     alias(libs.plugins.ksp)
+    id("com.google.gms.google-services")
     kotlin("plugin.serialization") version "1.9.22"
+}
+
+// Write google-services.json from environment variable (GitHub Secrets)
+val googleServicesJson = System.getenv("GOOGLE_SERVICES_JSON")
+if (!googleServicesJson.isNullOrEmpty()) {
+    rootProject.file("app/google-services.json").writeText(googleServicesJson)
 }
 
 android {
@@ -193,4 +200,8 @@ dependencies {
     implementation(project(":lrclib"))
     implementation(project(":kugou"))
     implementation(project(":newpipe"))
+
+    // Firebase
+    implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
+    implementation("com.google.firebase:firebase-database")
 }
