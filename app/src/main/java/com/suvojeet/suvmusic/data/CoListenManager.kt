@@ -71,7 +71,13 @@ class CoListenManager @Inject constructor(
         return database!!
     }
 
-    fun createSession(onSuccess: (String) -> Unit, onError: (String) -> Unit) {
+    fun createSession(
+        currentSong: Song?,
+        isPlaying: Boolean,
+        position: Long,
+        onSuccess: (String) -> Unit,
+        onError: (String) -> Unit
+    ) {
         scope.launch {
             try {
                 _connectionState.value = ConnectionState.Connecting
@@ -83,6 +89,9 @@ class CoListenManager @Inject constructor(
                     code = code,
                     hostId = currentUserId,
                     users = mapOf(currentUserId to createSessionUser()),
+                    currentSong = currentSong?.toSessionSong(),
+                    isPlaying = isPlaying,
+                    position = position,
                     timestamp = currentTime,
                     lastActivity = currentTime
                 )

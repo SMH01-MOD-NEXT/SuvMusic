@@ -807,14 +807,21 @@ class PlayerViewModel @Inject constructor(
     val coListenSessionEnded = coListenManager.sessionEndedEvent
     
     fun createCoListenSession() {
-         coListenManager.createSession(
-             onSuccess = { code -> 
-                 // Success handling if needed
-             },
-             onError = { error ->
-                 // Error handling 
-             }
-         )
+        val currentSong = playerState.value.currentSong
+        val isPlaying = playerState.value.isPlaying
+        val position = playerState.value.currentPosition
+        
+        coListenManager.createSession(
+            currentSong = currentSong,
+            isPlaying = isPlaying,
+            position = position,
+            onSuccess = { code -> 
+                // Session created successfully
+            },
+            onError = { error ->
+                // Error handling 
+            }
+        )
     }
     
     fun joinCoListenSession(code: String) {
