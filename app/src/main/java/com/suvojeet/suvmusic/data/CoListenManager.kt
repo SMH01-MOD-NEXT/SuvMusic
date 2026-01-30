@@ -48,6 +48,17 @@ class CoListenManager @Inject constructor(
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
 
+    // Event when a new user joins the session
+    private val _userJoinedEvent = MutableStateFlow<SessionUser?>(null)
+    val userJoinedEvent: StateFlow<SessionUser?> = _userJoinedEvent.asStateFlow()
+
+    // Show syncing dialog state - controlled by ViewModel
+    private val _showSyncingDialog = MutableStateFlow(false)
+    val showSyncingDialog: StateFlow<Boolean> = _showSyncingDialog.asStateFlow()
+
+    // Track previous user count for join detection
+    private var previousUserCount = 0
+
     private var currentUserId: String = ""
     private var currentUserName: String = ""
     private var currentUserAvatar: String = ""
@@ -126,10 +137,12 @@ class CoListenManager @Inject constructor(
                     return@launch
                 }
                 
-                // Add user to session and update activity
+                // Add user to session and update activity - trigger sync
+                val currentTime = System.currentTimeMillis()
                 val updates = hashMapOf<String, Any>(
                     "users/${currentUserId}" to createSessionUser(),
-                    "lastActivity" to System.currentTimeMillis()
+                    "lastActivity" to currentTime,
+                    "isSyncing" to true // Trigger sync when new user joins
                 )
                 sessionRef.updateChildren(updates).await()
                 
@@ -223,8 +236,22 @@ class CoListenManager @Inject constructor(
                         _connectionState.value = ConnectionState.Connected(code)
                         currentSessionRef = ref
                         
+                        // Detect new user joins
+                        val currentUserCount = session.users.size
+                        if (currentUserCount > previousUserCount && previousUserCount > 0) {
+                            // Find the new user (not us)
+                            val newUser = session.users.values.find { user ->
+                                user.id != currentUserId && user.joinedAt > System.currentTimeMillis() - 5000
+                            }
+                            if (newUser != null) {
+                                _userJoinedEvent.value = newUser
+                            }
+                        }
+                        previousUserCount = currentUserCount
+                        
                         // Update local syncing state from Firebase
                         _isSyncing.value = session.isSyncing
+                        _showSyncingDialog.value = session.isSyncing
                         
                         // Check if all users are ready (only relevant when syncing)
                         if (session.isSyncing) {
@@ -233,6 +260,7 @@ class CoListenManager @Inject constructor(
                                 // All devices ready - clear syncing flag
                                 ref.child("isSyncing").setValue(false)
                                 _isSyncing.value = false
+                                _showSyncingDialog.value = false
                             }
                         }
                         
@@ -264,6 +292,8 @@ class CoListenManager @Inject constructor(
         _sessionState.value = null
         _connectionState.value = ConnectionState.Disconnected
         _sessionEndedEvent.value = reason
+        _showSyncingDialog.value = false
+        previousUserCount = 0
         isHost = false
     }
 
@@ -312,7 +342,8 @@ class CoListenManager @Inject constructor(
             name = currentUserName,
             avatarUrl = currentUserAvatar,
             isActive = true,
-            isBuffering = isBuffering
+            isBuffering = isBuffering,
+            joinedAt = System.currentTimeMillis()
         )
     }
 
@@ -359,6 +390,56 @@ class CoListenManager @Inject constructor(
     }
 
     fun isCurrentUserHost(): Boolean = isHost
+
+    /**
+     * Pause playback for sync when song changes or user joins.
+     * Sets isSyncing flag on Firebase to pause all devices.
+     */
+    fun pauseForSync() {
+        if (_connectionState.value !is ConnectionState.Connected) return
+        _isSyncing.value = true
+        _showSyncingDialog.value = true
+        
+        val updates = hashMapOf<String, Any>(
+            "isSyncing" to true,
+            "isPlaying" to false
+        )
+        currentSessionRef?.updateChildren(updates)
+    }
+
+    /**
+     * Resume playback after all devices are synced.
+     */
+    fun resumeAfterSync() {
+        if (_connectionState.value !is ConnectionState.Connected) return
+        
+        val updates = hashMapOf<String, Any>(
+            "isSyncing" to false,
+            "isPlaying" to true
+        )
+        currentSessionRef?.updateChildren(updates)
+        _isSyncing.value = false
+        _showSyncingDialog.value = false
+    }
+
+    /**
+     * Manually control syncing dialog visibility.
+     */
+    fun setShowSyncingDialog(show: Boolean) {
+        _showSyncingDialog.value = show
+    }
+
+    /**
+     * Clear the user joined event after processing.
+     */
+    fun clearUserJoinedEvent() {
+        _userJoinedEvent.value = null
+    }
+
+    /**
+     * Get the current user ID for this session.
+     */
+    fun getCurrentUserId(): String = currentUserId
 }
 
 sealed class ConnectionState {

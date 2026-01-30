@@ -115,6 +115,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import com.suvojeet.suvmusic.ui.components.dialog.CoListenDialog
+import com.suvojeet.suvmusic.ui.components.dialog.SyncingDialog
 
 /**
  * Premium full-screen player with Apple Music-style design.
@@ -945,6 +946,10 @@ fun PlayerScreen(
                     showActionsSheet = false
                     showPlaybackSpeedSheet = true
                 },
+                onListenTogether = {
+                    showActionsSheet = false
+                    showCoListenDialog = true
+                },
                 currentSpeed = playerState.playbackSpeed,
                 onSetRingtone = {
                     showActionsSheet = false
@@ -1091,4 +1096,14 @@ fun PlayerScreen(
             onDismiss = { showCoListenDialog = false }
         )
     }
+
+    // Syncing Dialog Overlay
+    val showSyncingDialog by playerViewModel.coListenShowSyncingDialog.collectAsState()
+    val coListenSession by playerViewModel.coListenSessionState.collectAsState()
+    
+    SyncingDialog(
+        isVisible = showSyncingDialog,
+        users = coListenSession?.users?.values?.toList() ?: emptyList(),
+        currentUserId = playerViewModel.getCoListenCurrentUserId()
+    )
 }

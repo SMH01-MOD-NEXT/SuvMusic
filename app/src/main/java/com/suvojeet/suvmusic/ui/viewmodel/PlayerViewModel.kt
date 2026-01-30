@@ -807,6 +807,9 @@ class PlayerViewModel @Inject constructor(
     val coListenConnectionState = coListenManager.connectionState
     val coListenSessionEnded = coListenManager.sessionEndedEvent
     val coListenSyncing = coListenManager.isSyncing
+    val coListenShowSyncingDialog = coListenManager.showSyncingDialog
+
+    fun getCoListenCurrentUserId(): String = coListenManager.getCurrentUserId()
     
     fun createCoListenSession() {
         val currentSong = playerState.value.currentSong
@@ -954,7 +957,7 @@ class PlayerViewModel @Inject constructor(
              combine(
                  playerState.map { it.currentSong }.distinctUntilChanged(),
                  playerState.map { it.isPlaying }.distinctUntilChanged(),
-                 playerState.map { it.currentPosition }.map { it / 5000 }.distinctUntilChanged() // Throttle position updates to ~5s
+                 playerState.map { it.currentPosition }.map { it / 1000 }.distinctUntilChanged() // Throttle position updates to ~1s
              ) { song, isPlaying, _ ->
                  Triple(song, isPlaying, musicPlayer.playerState.value.currentPosition)
              }.collectLatest { (song, isPlaying, position) ->

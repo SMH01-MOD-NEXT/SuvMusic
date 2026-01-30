@@ -32,7 +32,8 @@ data class SessionUser(
     val name: String = "",
     val avatarUrl: String = "",
     val isActive: Boolean = true,
-    val isBuffering: Boolean = false // True when device is loading/buffering current song
+    val isBuffering: Boolean = false, // True when device is loading/buffering current song
+    val joinedAt: Long = 0L // Timestamp when user joined the session
 )
 
 @Serializable
