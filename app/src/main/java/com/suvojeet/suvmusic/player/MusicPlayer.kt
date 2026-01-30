@@ -41,6 +41,7 @@ import com.suvojeet.suvmusic.data.model.OutputDevice
 import com.suvojeet.suvmusic.util.MusicHapticsManager
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.abs
 
 /**
  * Wrapper around MediaController connected to MusicPlayerService.
@@ -60,17 +61,6 @@ class MusicPlayer @Inject constructor(
     private val musicHapticsManager: MusicHapticsManager,
     private val sponsorBlockRepository: com.suvojeet.suvmusic.data.repository.SponsorBlockRepository
 ) {
-
-    // Enum to track who initiated the seek/position change
-    private enum class SeekSource {
-        PLAYER,
-        USER,
-        SPONSORBLOCK
-    }
-
-    // Volatile state to track seek source across threads
-    @Volatile
-    private var lastSeekSource: SeekSource = SeekSource.PLAYER
 
     // ... (existing properties)
 
@@ -99,8 +89,10 @@ class MusicPlayer @Inject constructor(
     // Track manually selected device ID to persist selection across refreshes
     private var manualSelectedDeviceId: String? = null
 
-    // Track when the user last manually seeked to provide a short immunity window
-    private var lastManualSeekTimestamp: Long = 0L
+    // Track the explicit target position of the last user seek.
+    // This allows us to distinguish between "playback naturally entering a segment" (SKIP)
+    // and "user seeking into a segment" (DON'T SKIP).
+    private var userSeekTargetPosition: Long? = null
 
     // Cache for resolved video IDs for non-YouTube songs (SongId -> VideoId)
     // Fix: Unbounded Memory Leak -> Use LruCache with max size 100
@@ -326,8 +318,8 @@ class MusicPlayer @Inject constructor(
         }
         
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-            // Reset SeekSource on track change to ensure clean state
-            lastSeekSource = SeekSource.PLAYER
+            // Reset user seek intent on track change
+            userSeekTargetPosition = null
 
             mediaItem?.let { item ->
                 val controller = mediaController ?: return@let
@@ -522,8 +514,8 @@ class MusicPlayer @Inject constructor(
                         else -> {
                             if (_playerState.value.isVideoMode) {
                                 // Smart Video Matching
-                                val videoId = resolvedVideoIds[song.id] ?: youTubeRepository.getBestVideoId(song).also { 
-                                    resolvedVideoIds.put(song.id, it) 
+                                val videoId = resolvedVideoIds[song.id] ?: youTubeRepository.getBestVideoId(song).also {
+                                    resolvedVideoIds.put(song.id, it)
                                 }
                                 youTubeRepository.getVideoStreamUrl(videoId)
                             } else {
@@ -659,18 +651,6 @@ class MusicPlayer @Inject constructor(
         }
     }
 
-    // Internal helper to perform instant automated skips
-    private fun sponsorBlockSeek(to: Long) {
-        // Prevent infinite loops if multiple segments are close
-        if (lastSeekSource == SeekSource.SPONSORBLOCK) {
-            // Optional: check if we are already at target?
-        }
-
-        lastSeekSource = SeekSource.SPONSORBLOCK
-        mediaController?.seekTo(to)
-        android.util.Log.d("MusicPlayer", "SponsorBlock performed seek to $to ms")
-    }
-
     private fun startPositionUpdates() {
         positionUpdateJob?.cancel()
         saveCounter = 0
@@ -679,11 +659,15 @@ class MusicPlayer @Inject constructor(
             // This avoids unnecessary calls to the repository if the song hasn't changed.
             var lastWatcherVideoId: String? = null
 
+            // Keeps track of a segment we explicitly decided to IGNORE because the user sought into it.
+            // This acts as a latch: once we decide to ignore a segment, we keep ignoring it until we leave it.
+            var ignoredSegmentEndMs: Long? = null
+
             while (true) {
                 mediaController?.let { controller ->
                     val currentPos = controller.currentPosition.coerceAtLeast(0L)
                     val duration = controller.duration.coerceAtLeast(0L)
-                    
+
                     _playerState.update { 
                         it.copy(
                             currentPosition = currentPos,
@@ -699,20 +683,44 @@ class MusicPlayer @Inject constructor(
                         if (targetVideoId != lastWatcherVideoId) {
                             sponsorBlockRepository.loadSegments(targetVideoId)
                             lastWatcherVideoId = targetVideoId
+                            // Reset ignored state on video change
+                            ignoredSegmentEndMs = null
                         }
 
                         // Strict Source-Based Skip Logic
-                        if (controller.isPlaying) {
-                            // Skip only if the last seek was not from user, or if user immunity period (500ms) has expired
-                            val isUserImmunityActive = lastSeekSource == SeekSource.USER &&
-                                    (System.currentTimeMillis() - lastManualSeekTimestamp < 500)
+                        if (controller.isPlaying && controller.playbackState == Player.STATE_READY) {
+                            val skipToSeconds = sponsorBlockRepository.checkSkip(currentPos / 1000f)
 
-                            if (!isUserImmunityActive) {
-                                val skipToSeconds = sponsorBlockRepository.checkSkip(currentPos / 1000f)
-                                if (skipToSeconds != null) {
-                                    // Found a segment and user is not scrubbing -> INSTANT SKIP
-                                    sponsorBlockSeek((skipToSeconds * 1000).toLong())
+                            if (skipToSeconds != null) {
+                                val targetMs = (skipToSeconds * 1000).toLong()
+
+                                // If we are currently ignoring this specific segment (because user sought into it), do nothing
+                                if (ignoredSegmentEndMs == targetMs) {
+                                    // Continue playing without skipping
+                                } else {
+                                    // Robust check for user intent:
+                                    val isUserIntent = userSeekTargetPosition?.let { target ->
+                                        // 3 seconds tolerance allows for some playback advancement or keyframe inaccuracies
+                                        abs(currentPos - target) < 3000
+                                    } ?: false
+
+                                    if (isUserIntent) {
+                                        // User explicitly sought here. Ignore this segment.
+                                        ignoredSegmentEndMs = targetMs
+                                        // Clear the intent target so we don't accidentally ignore it later if we loop back
+                                        userSeekTargetPosition = null
+                                        android.util.Log.d("MusicPlayer", "Ignoring SB skip due to user seek")
+                                    } else {
+                                        // Automated Skip
+                                        mediaController?.seekTo(targetMs)
+                                        // Mark as ignored to prevent loops if seek lands slightly inside
+                                        ignoredSegmentEndMs = targetMs
+                                        android.util.Log.d("MusicPlayer", "SponsorBlock skipped to $targetMs")
+                                    }
                                 }
+                            } else {
+                                // We are not in a segment, reset the ignore latch
+                                ignoredSegmentEndMs = null
                             }
                         }
                     }
@@ -998,9 +1006,8 @@ class MusicPlayer @Inject constructor(
     }
     
     fun seekTo(position: Long) {
-        // Tag this as a USER seek so the automated loop knows to respect it
-        lastSeekSource = SeekSource.USER
-        lastManualSeekTimestamp = System.currentTimeMillis()
+        // Tag this specific seek target so we can identify when the player reaches it
+        userSeekTargetPosition = position
 
         // Perform standard seek without pre-checks (Architecture shift: Loop handles intelligence)
         mediaController?.seekTo(position)
@@ -1148,12 +1155,12 @@ class MusicPlayer @Inject constructor(
         val clampedPitch = pitch.coerceIn(0.1f, 5.0f)
         
         mediaController?.playbackParameters = androidx.media3.common.PlaybackParameters(clampedSpeed, clampedPitch)
-        
-        _playerState.update { 
+
+        _playerState.update {
             it.copy(
                 playbackSpeed = clampedSpeed,
                 pitch = clampedPitch
-            ) 
+            )
         }
     }
     
