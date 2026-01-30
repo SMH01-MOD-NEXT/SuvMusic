@@ -811,15 +811,22 @@ class PlayerViewModel @Inject constructor(
         val isPlaying = playerState.value.isPlaying
         val position = playerState.value.currentPosition
         
+        // Skip sync for a short period to avoid race conditions
+        skipInitialSync = true
+        
         coListenManager.createSession(
             currentSong = currentSong,
             isPlaying = isPlaying,
             position = position,
             onSuccess = { code -> 
-                // Session created successfully
+                // Clear skip flag after a delay to let Firebase stabilize
+                viewModelScope.launch {
+                    delay(1000)
+                    skipInitialSync = false
+                }
             },
             onError = { error ->
-                // Error handling 
+                skipInitialSync = false
             }
         )
     }
@@ -847,12 +854,16 @@ class PlayerViewModel @Inject constructor(
     fun isCoListenHost(): Boolean = coListenManager.isCurrentUserHost()
     
     private var isRemoteUpdate = false
+    private var skipInitialSync = false // To prevent sync race on session creation/join
     
     private fun observeCoListenState() {
         // 1. Observe Remote Changes -> Update Local Player (for ALL users, not just guests)
         viewModelScope.launch {
             coListenManager.sessionState.collect { session ->
                 if (session == null) return@collect
+                
+                // Skip if we just created/joined (let Firebase stabilize)
+                if (skipInitialSync) return@collect
                 
                 // All users sync from remote state, but we skip if WE just pushed an update
                 if (isRemoteUpdate) return@collect
@@ -921,6 +932,8 @@ class PlayerViewModel @Inject constructor(
              ) { song, isPlaying, _ ->
                  Triple(song, isPlaying, musicPlayer.playerState.value.currentPosition)
              }.collectLatest { (song, isPlaying, position) ->
+                 // Skip during initial connection setup
+                 if (skipInitialSync) return@collectLatest
                  if (isRemoteUpdate) return@collectLatest
                  
                  // Any connected user can push updates
