@@ -10,6 +10,7 @@ data class Session(
     val isPlaying: Boolean = false,
     val position: Long = 0L,
     val timestamp: Long = 0L,
+    val lastActivity: Long = 0L, // For auto-cleanup after inactivity
     val users: Map<String, SessionUser> = emptyMap()
 )
 

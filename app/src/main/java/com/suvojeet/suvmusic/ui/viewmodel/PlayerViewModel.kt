@@ -804,6 +804,7 @@ class PlayerViewModel @Inject constructor(
     
     val coListenSessionState = coListenManager.sessionState
     val coListenConnectionState = coListenManager.connectionState
+    val coListenSessionEnded = coListenManager.sessionEndedEvent
     
     fun createCoListenSession() {
          coListenManager.createSession(
@@ -831,85 +832,91 @@ class PlayerViewModel @Inject constructor(
     fun leaveCoListenSession() {
         coListenManager.leaveSession()
     }
+
+    fun clearSessionEndedEvent() {
+        coListenManager.clearSessionEndedEvent()
+    }
+
+    fun isCoListenHost(): Boolean = coListenManager.isCurrentUserHost()
     
     private var isRemoteUpdate = false
     
     private fun observeCoListenState() {
-        // 1. Observe Remote Changes -> Update Local Player
+        // 1. Observe Remote Changes -> Update Local Player (for ALL users, not just guests)
         viewModelScope.launch {
             coListenManager.sessionState.collect { session ->
                 if (session == null) return@collect
                 
-                // If we are the host, we don't need to sync FROM firebase, we push TO firebase
-                // But for simplicity and consistency (and if we support multi-host later), we can check drift
-                // For now: specific rule -> Host is authority, Guests sync.
+                // All users sync from remote state, but we skip if WE just pushed an update
+                if (isRemoteUpdate) return@collect
                 
-                val isHost = session.hostId == (sessionManager.getCookies()?.hashCode()?.toString() ?: "")
-                if (isHost) return@collect 
+                val remoteSongId = session.currentSong?.id
+                val currentSongId = playerState.value.currentSong?.id
+                val remoteIsPlaying = session.isPlaying
+                val currentIsPlaying = playerState.value.isPlaying
                 
-                isRemoteUpdate = true
-                try {
-                    // Sync Song
-                    val remoteSongId = session.currentSong?.id
-                    val currentSongId = playerState.value.currentSong?.id
-                    
-                    if (remoteSongId != null && remoteSongId != currentSongId) {
-                         // Need to change song. 
-                         // We need a way to get the full Song object from ID.
-                         // Ideally we'd have a repository lookup or construct from SessionSong data
-                         val sessionSong = session.currentSong
-                         val song = Song(
-                             id = sessionSong.id,
-                             title = sessionSong.title,
-                             artist = sessionSong.artist,
-                             album = sessionSong.album,
-                             thumbnailUrl = sessionSong.thumbnailUrl,
-                             duration = sessionSong.duration,
-                             source = try { SongSource.valueOf(sessionSong.source) } catch (e: Exception) { SongSource.YOUTUBE },
-                             // Other fields defaults
-                         )
-                         playSong(song)
+                // Sync Song
+                if (remoteSongId != null && remoteSongId != currentSongId) {
+                    isRemoteUpdate = true
+                    try {
+                        val sessionSong = session.currentSong
+                        val song = Song(
+                            id = sessionSong.id,
+                            title = sessionSong.title,
+                            artist = sessionSong.artist,
+                            album = sessionSong.album,
+                            thumbnailUrl = sessionSong.thumbnailUrl,
+                            duration = sessionSong.duration,
+                            source = try { SongSource.valueOf(sessionSong.source) } catch (e: Exception) { SongSource.YOUTUBE }
+                        )
+                        playSong(song)
+                    } finally {
+                        delay(500)
+                        isRemoteUpdate = false
                     }
-                    
-                    // Sync Play/Pause
-                    if (session.isPlaying != playerState.value.isPlaying) {
-                        if (session.isPlaying) play() else pause()
+                    return@collect // Let the song load before syncing position
+                }
+                
+                // Sync Play/Pause
+                if (remoteIsPlaying != currentIsPlaying) {
+                    isRemoteUpdate = true
+                    try {
+                        if (remoteIsPlaying) play() else pause()
+                    } finally {
+                        delay(300)
+                        isRemoteUpdate = false
                     }
-                    
-                    // Sync Position (with drift check)
-                    val currentPos = musicPlayer.playerState.value.currentPosition
-                    val timeDiff = System.currentTimeMillis() - session.timestamp
-                    val expectedPos = session.position + (if (session.isPlaying) timeDiff else 0)
-                    
-                    if (kotlin.math.abs(currentPos - expectedPos) > 2000) { // 2 seconds leeway
+                }
+                
+                // Sync Position (with drift check)
+                val currentPos = musicPlayer.playerState.value.currentPosition
+                val timeDiff = System.currentTimeMillis() - session.timestamp
+                val expectedPos = session.position + (if (session.isPlaying) timeDiff else 0)
+                
+                if (kotlin.math.abs(currentPos - expectedPos) > 3000) { // 3 seconds leeway
+                    isRemoteUpdate = true
+                    try {
                         seekTo(expectedPos)
+                    } finally {
+                        delay(300)
+                        isRemoteUpdate = false
                     }
-                    
-                } finally {
-                    // Reset flag after a short delay to allow player state to settle without triggering push
-                    delay(500)
-                    isRemoteUpdate = false
                 }
             }
         }
         
-        // 2. Observe Local Changes -> Push to Firebase
+        // 2. Observe Local Changes -> Push to Firebase (for ALL connected users)
         viewModelScope.launch {
              combine(
                  playerState.map { it.currentSong }.distinctUntilChanged(),
                  playerState.map { it.isPlaying }.distinctUntilChanged(),
-                 // We don't continuously push position, only on pause/seek/periodic? 
-                 // For now let's push on events.
                  playerState.map { it.currentPosition }.map { it / 5000 }.distinctUntilChanged() // Throttle position updates to ~5s
              ) { song, isPlaying, _ ->
                  Triple(song, isPlaying, musicPlayer.playerState.value.currentPosition)
              }.collectLatest { (song, isPlaying, position) ->
                  if (isRemoteUpdate) return@collectLatest
                  
-                 // Only Host pushes? Or anyone? 
-                 // Feature req: "other users ke ps bhi control hoga" -> Anyone pushes.
-                 // To avoid loops: rely on isRemoteUpdate flag and maybe debounce.
-                 
+                 // Any connected user can push updates
                  if (coListenManager.connectionState.value is ConnectionState.Connected) {
                       coListenManager.updatePlayerState(song, isPlaying, position)
                  }

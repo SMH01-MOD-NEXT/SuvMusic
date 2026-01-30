@@ -9,12 +9,14 @@ import com.suvojeet.suvmusic.data.model.Session
 import com.suvojeet.suvmusic.data.model.SessionSong
 import com.suvojeet.suvmusic.data.model.SessionUser
 import com.suvojeet.suvmusic.data.model.Song
-import com.suvojeet.suvmusic.data.model.SongSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
@@ -29,6 +31,8 @@ class CoListenManager @Inject constructor(
     private var database: FirebaseDatabase? = null
     private var currentSessionRef: DatabaseReference? = null
     private var sessionListener: ValueEventListener? = null
+    private var activityUpdateJob: Job? = null
+    private var cleanupCheckJob: Job? = null
 
     private val _sessionState = MutableStateFlow<Session?>(null)
     val sessionState: StateFlow<Session?> = _sessionState.asStateFlow()
@@ -36,9 +40,19 @@ class CoListenManager @Inject constructor(
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
+    // Callback for when session ends (host left or deleted)
+    private val _sessionEndedEvent = MutableStateFlow<String?>(null)
+    val sessionEndedEvent: StateFlow<String?> = _sessionEndedEvent.asStateFlow()
+
     private var currentUserId: String = ""
     private var currentUserName: String = ""
     private var currentUserAvatar: String = ""
+    private var isHost: Boolean = false
+
+    companion object {
+        private const val INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000L // 10 minutes
+        private const val ACTIVITY_UPDATE_INTERVAL_MS = 60 * 1000L // 1 minute
+    }
 
     init {
         scope.launch {
@@ -64,15 +78,20 @@ class CoListenManager @Inject constructor(
                 val code = generateSessionCode()
                 val sessionRef = getDb().getReference("sessions").child(code)
                 
+                val currentTime = System.currentTimeMillis()
                 val initialSession = Session(
                     code = code,
                     hostId = currentUserId,
-                    users = mapOf(currentUserId to createSessionUser())
+                    users = mapOf(currentUserId to createSessionUser()),
+                    timestamp = currentTime,
+                    lastActivity = currentTime
                 )
                 
                 sessionRef.setValue(initialSession).await()
                 
+                isHost = true
                 subscribeToSession(code)
+                startActivityUpdater()
                 onSuccess(code)
             } catch (e: Exception) {
                 _connectionState.value = ConnectionState.Disconnected
@@ -94,10 +113,16 @@ class CoListenManager @Inject constructor(
                     return@launch
                 }
                 
-                // Add user to session
-                sessionRef.child("users").child(currentUserId).setValue(createSessionUser()).await()
+                // Add user to session and update activity
+                val updates = hashMapOf<String, Any>(
+                    "users/${currentUserId}" to createSessionUser(),
+                    "lastActivity" to System.currentTimeMillis()
+                )
+                sessionRef.updateChildren(updates).await()
                 
+                isHost = false
                 subscribeToSession(code)
+                startActivityUpdater()
                 onSuccess()
             } catch (e: Exception) {
                 _connectionState.value = ConnectionState.Disconnected
@@ -108,21 +133,28 @@ class CoListenManager @Inject constructor(
 
     fun leaveSession() {
         scope.launch {
+            val wasHost = isHost
+            val sessionCode = (_connectionState.value as? ConnectionState.Connected)?.code
+            
             currentSessionRef?.let { ref ->
                 // Remove listener
                 sessionListener?.let { ref.removeEventListener(it) }
                 
-                // Remove user from session
-                ref.child("users").child(currentUserId).removeValue()
-                
-                // Check if we were the last user or host, maybe cleanup? 
-                // For now just leave. Firebase rules can handle cleanup or TTL.
+                if (wasHost && sessionCode != null) {
+                    // Host leaves -> Delete entire session
+                    ref.removeValue().await()
+                } else {
+                    // Guest leaves -> Just remove user from session
+                    ref.child("users").child(currentUserId).removeValue()
+                }
             }
             
+            stopActivityUpdater()
             currentSessionRef = null
             sessionListener = null
             _sessionState.value = null
             _connectionState.value = ConnectionState.Disconnected
+            isHost = false
         }
     }
 
@@ -132,11 +164,13 @@ class CoListenManager @Inject constructor(
         if (_connectionState.value !is ConnectionState.Connected) return
 
         val sessionSong = song?.toSessionSong()
+        val currentTime = System.currentTimeMillis()
         
         val updates = hashMapOf<String, Any>(
             "isPlaying" to isPlaying,
             "position" to position,
-            "timestamp" to System.currentTimeMillis()
+            "timestamp" to currentTime,
+            "lastActivity" to currentTime
         )
         if (sessionSong != null) {
             updates["currentSong"] = sessionSong
@@ -145,21 +179,35 @@ class CoListenManager @Inject constructor(
         currentSessionRef?.updateChildren(updates)
     }
 
+    fun clearSessionEndedEvent() {
+        _sessionEndedEvent.value = null
+    }
+
     private fun subscribeToSession(code: String) {
         val ref = getDb().getReference("sessions").child(code)
         
         sessionListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 try {
+                    if (!snapshot.exists()) {
+                        // Session was deleted (host left or auto-cleanup)
+                        handleSessionEnded("Session has ended")
+                        return
+                    }
+                    
                     val session = snapshot.getValue(Session::class.java)
                     _sessionState.value = session
                     
                     if (session != null) {
                         _connectionState.value = ConnectionState.Connected(code)
                         currentSessionRef = ref
+                        
+                        // Check if session is inactive and we should clean it up
+                        if (isHost) {
+                            checkAndCleanupInactiveSession(session)
+                        }
                     } else {
-                        // Session deleted?
-                        leaveSession()
+                        handleSessionEnded("Session was deleted")
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -172,6 +220,52 @@ class CoListenManager @Inject constructor(
         }
         
         ref.addValueEventListener(sessionListener!!)
+    }
+
+    private fun handleSessionEnded(reason: String) {
+        stopActivityUpdater()
+        currentSessionRef?.removeEventListener(sessionListener!!)
+        currentSessionRef = null
+        sessionListener = null
+        _sessionState.value = null
+        _connectionState.value = ConnectionState.Disconnected
+        _sessionEndedEvent.value = reason
+        isHost = false
+    }
+
+    private fun startActivityUpdater() {
+        activityUpdateJob?.cancel()
+        activityUpdateJob = scope.launch {
+            while (isActive) {
+                delay(ACTIVITY_UPDATE_INTERVAL_MS)
+                // Update lastActivity periodically if we're still connected
+                if (_connectionState.value is ConnectionState.Connected) {
+                    currentSessionRef?.child("lastActivity")?.setValue(System.currentTimeMillis())
+                }
+            }
+        }
+    }
+
+    private fun stopActivityUpdater() {
+        activityUpdateJob?.cancel()
+        activityUpdateJob = null
+        cleanupCheckJob?.cancel()
+        cleanupCheckJob = null
+    }
+
+    private fun checkAndCleanupInactiveSession(session: Session) {
+        // Only the host can initiate cleanup
+        if (!isHost) return
+        
+        val now = System.currentTimeMillis()
+        val timeSinceLastActivity = now - session.lastActivity
+        
+        // If only host remains and no activity for 10 minutes, delete session
+        if (session.users.size <= 1 && timeSinceLastActivity > INACTIVITY_TIMEOUT_MS) {
+            scope.launch {
+                currentSessionRef?.removeValue()
+            }
+        }
     }
 
     private fun generateSessionCode(): String {
@@ -198,6 +292,8 @@ class CoListenManager @Inject constructor(
             source = this.source.name
         )
     }
+
+    fun isCurrentUserHost(): Boolean = isHost
 }
 
 sealed class ConnectionState {
