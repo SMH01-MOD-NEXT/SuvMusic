@@ -47,6 +47,7 @@ fun CoListenDialog(
     val connectionState by viewModel.coListenConnectionState.collectAsState()
     val sessionState by viewModel.coListenSessionState.collectAsState()
     val sessionEndedEvent by viewModel.coListenSessionEnded.collectAsState()
+    val isSyncing by viewModel.coListenSyncing.collectAsState()
     val isHost = viewModel.isCoListenHost()
 
     // Handle session end event
@@ -82,6 +83,7 @@ fun CoListenDialog(
                             sessionCode = state.code,
                             session = sessionState,
                             isHost = isHost,
+                            isSyncing = isSyncing,
                             onLeave = { viewModel.leaveCoListenSession() }
                         )
                     }
@@ -156,6 +158,7 @@ fun ConnectedContent(
     sessionCode: String,
     session: Session?,
     isHost: Boolean,
+    isSyncing: Boolean,
     onLeave: () -> Unit
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -168,6 +171,26 @@ fun ConnectedContent(
         Text("Share this code with friends", style = MaterialTheme.typography.bodySmall)
         
         Spacer(modifier = Modifier.height(24.dp))
+        
+        // Show syncing indicator when syncing
+        if (isSyncing) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    strokeWidth = 2.dp
+                )
+                Spacer(modifier = Modifier.padding(horizontal = 8.dp))
+                Text(
+                    text = "Syncing with devices...",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
         
         Text(
             text = "${session?.users?.size ?: 0} Listening",

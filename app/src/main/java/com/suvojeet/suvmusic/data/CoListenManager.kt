@@ -44,6 +44,10 @@ class CoListenManager @Inject constructor(
     private val _sessionEndedEvent = MutableStateFlow<String?>(null)
     val sessionEndedEvent: StateFlow<String?> = _sessionEndedEvent.asStateFlow()
 
+    // Syncing state - true when waiting for all devices to buffer
+    private val _isSyncing = MutableStateFlow(false)
+    val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
+
     private var currentUserId: String = ""
     private var currentUserName: String = ""
     private var currentUserAvatar: String = ""
@@ -175,6 +179,9 @@ class CoListenManager @Inject constructor(
         val sessionSong = song?.toSessionSong()
         val currentTime = System.currentTimeMillis()
         
+        // Check if song is changing - if so, set syncing state
+        val songChanged = sessionSong != null && currentSession.currentSong?.id != sessionSong.id
+        
         val updates = hashMapOf<String, Any>(
             "isPlaying" to isPlaying,
             "position" to position,
@@ -183,6 +190,11 @@ class CoListenManager @Inject constructor(
         )
         if (sessionSong != null) {
             updates["currentSong"] = sessionSong
+            if (songChanged) {
+                // Set syncing flag when song changes
+                updates["isSyncing"] = true
+                _isSyncing.value = true
+            }
         }
         
         currentSessionRef?.updateChildren(updates)
@@ -210,6 +222,19 @@ class CoListenManager @Inject constructor(
                     if (session != null) {
                         _connectionState.value = ConnectionState.Connected(code)
                         currentSessionRef = ref
+                        
+                        // Update local syncing state from Firebase
+                        _isSyncing.value = session.isSyncing
+                        
+                        // Check if all users are ready (only relevant when syncing)
+                        if (session.isSyncing) {
+                            val allReady = session.users.values.none { it.isBuffering }
+                            if (allReady) {
+                                // All devices ready - clear syncing flag
+                                ref.child("isSyncing").setValue(false)
+                                _isSyncing.value = false
+                            }
+                        }
                         
                         // Check if session is inactive and we should clean it up
                         if (isHost) {
@@ -281,13 +306,44 @@ class CoListenManager @Inject constructor(
         return (100000..999999).random().toString()
     }
     
-    private fun createSessionUser(): SessionUser {
+    private fun createSessionUser(isBuffering: Boolean = false): SessionUser {
         return SessionUser(
             id = currentUserId,
             name = currentUserName,
             avatarUrl = currentUserAvatar,
-            isActive = true
+            isActive = true,
+            isBuffering = isBuffering
         )
+    }
+
+    /**
+     * Update this device's buffering state in the session.
+     * Call this when player starts/finishes loading a song.
+     */
+    fun updateBufferingState(isBuffering: Boolean) {
+        if (_connectionState.value !is ConnectionState.Connected) return
+        
+        currentSessionRef?.child("users")?.child(currentUserId)?.child("isBuffering")?.setValue(isBuffering)
+        
+        // If we just finished buffering, check if all users are ready
+        if (!isBuffering) {
+            checkAllUsersReady()
+        }
+    }
+
+    /**
+     * Check if all users in the session have finished buffering.
+     * If so, clear the syncing state to allow playback.
+     */
+    private fun checkAllUsersReady() {
+        val session = _sessionState.value ?: return
+        val allReady = session.users.values.none { it.isBuffering }
+        
+        if (allReady && session.isSyncing) {
+            // All devices ready - clear syncing flag
+            currentSessionRef?.child("isSyncing")?.setValue(false)
+            _isSyncing.value = false
+        }
     }
     
     private fun Song.toSessionSong(): SessionSong {

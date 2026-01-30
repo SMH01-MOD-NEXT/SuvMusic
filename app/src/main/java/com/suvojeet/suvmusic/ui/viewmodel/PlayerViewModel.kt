@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -805,6 +806,7 @@ class PlayerViewModel @Inject constructor(
     val coListenSessionState = coListenManager.sessionState
     val coListenConnectionState = coListenManager.connectionState
     val coListenSessionEnded = coListenManager.sessionEndedEvent
+    val coListenSyncing = coListenManager.isSyncing
     
     fun createCoListenSession() {
         val currentSong = playerState.value.currentSong
@@ -888,6 +890,9 @@ class PlayerViewModel @Inject constructor(
                 try {
                     // Sync Song
                     if (remoteSongId != null && remoteSongId != currentSongId) {
+                        // Report that we're starting to buffer
+                        coListenManager.updateBufferingState(true)
+                        
                         val sessionSong = session.currentSong
                         val song = Song(
                             id = sessionSong.id,
@@ -899,10 +904,18 @@ class PlayerViewModel @Inject constructor(
                             source = try { SongSource.valueOf(sessionSong.source) } catch (e: Exception) { SongSource.YOUTUBE }
                         )
                         playSong(song)
-                        delay(1000) // Let the song load
+                        
+                        // Wait for buffering to complete (isLoading becomes false)
+                        playerState.map { it.isLoading }.first { !it }
+                        
+                        // Report that we've finished buffering
+                        coListenManager.updateBufferingState(false)
+                        
+                        // Wait for sync to complete (all devices ready)
+                        coListenManager.isSyncing.first { !it }
                     }
                     
-                    // Sync Play/Pause
+                    // Sync Play/Pause (only after sync is complete)
                     if (remoteIsPlaying != currentIsPlaying) {
                         if (remoteIsPlaying) play() else pause()
                         delay(200)
@@ -921,6 +934,17 @@ class PlayerViewModel @Inject constructor(
                     // Keep the flag a bit longer to let state settle
                     delay(500)
                     isRemoteUpdate = false
+                }
+            }
+        }
+        
+        // 2. Observe buffering state and report to CoListen session (for host)
+        viewModelScope.launch {
+            playerState.map { it.isLoading }.distinctUntilChanged().collect { isLoading ->
+                if (coListenManager.connectionState.value is ConnectionState.Connected) {
+                    if (coListenManager.isCurrentUserHost()) {
+                        coListenManager.updateBufferingState(isLoading)
+                    }
                 }
             }
         }

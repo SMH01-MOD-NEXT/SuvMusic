@@ -11,7 +11,8 @@ data class Session(
     val position: Long = 0L,
     val timestamp: Long = 0L,
     val lastActivity: Long = 0L, // For auto-cleanup after inactivity
-    val users: Map<String, SessionUser> = emptyMap()
+    val users: Map<String, SessionUser> = emptyMap(),
+    val isSyncing: Boolean = false // True when song change is syncing across devices
 )
 
 @Serializable
@@ -30,7 +31,8 @@ data class SessionUser(
     val id: String = "",
     val name: String = "",
     val avatarUrl: String = "",
-    val isActive: Boolean = true
+    val isActive: Boolean = true,
+    val isBuffering: Boolean = false // True when device is loading/buffering current song
 )
 
 @Serializable
