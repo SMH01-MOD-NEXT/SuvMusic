@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -23,6 +24,7 @@ import com.suvojeet.suvmusic.ui.components.DominantColors
 fun PlayerTopBar(
     onBack: () -> Unit,
     onShowQueue: () -> Unit,
+    onShowCoListen: () -> Unit,
     dominantColors: DominantColors
 ) {
     Row(
@@ -41,19 +43,31 @@ fun PlayerTopBar(
             )
         }
 
-        Text(
-            text = "NOW PLAYING",
-            style = MaterialTheme.typography.labelMedium,
-            color = dominantColors.onBackground.copy(alpha = 0.7f),
-            letterSpacing = 2.sp
-        )
-
-        IconButton(onClick = onShowQueue) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-                contentDescription = "Queue",
-                tint = dominantColors.onBackground
+        // Title or visual indicator (kept simple)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+           Text(
+                text = "NOW PLAYING",
+                style = MaterialTheme.typography.labelMedium,
+                color = dominantColors.onBackground.copy(alpha = 0.7f),
+                letterSpacing = 2.sp
             )
+        }
+
+        Row {
+            IconButton(onClick = onShowCoListen) {
+                Icon(
+                    imageVector = Icons.Filled.Group,
+                    contentDescription = "Listen Together",
+                    tint = dominantColors.onBackground
+                )
+            }
+            IconButton(onClick = onShowQueue) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+                    contentDescription = "Queue",
+                    tint = dominantColors.onBackground
+                )
+            }
         }
     }
 }

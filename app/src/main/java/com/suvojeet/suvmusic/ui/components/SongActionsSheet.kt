@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Comment
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Nightlight
 import androidx.compose.material.icons.filled.PlaylistAdd
@@ -71,6 +72,7 @@ fun SongActionsSheet(
     onSetRingtone: () -> Unit = {},
     onStartRadio: () -> Unit = {},
     onPlaybackSpeed: () -> Unit = {},
+    onListenTogether: () -> Unit = {},
     currentSpeed: Float = 1.0f
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -199,6 +201,13 @@ fun SongActionsSheet(
                     icon = Icons.Default.Share,
                     title = "Share Song",
                     onClick = { shareSong(); onDismiss() }
+                )
+
+                ActionItem(
+                    icon = Icons.Default.Group,
+                    title = "Listen Together",
+                    iconTint = MaterialTheme.colorScheme.primary,
+                    onClick = { onListenTogether(); onDismiss() }
                 )
                 
                 ActionItem(

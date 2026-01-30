@@ -37,10 +37,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
+import com.suvojeet.suvmusic.data.CoListenManager
+import com.suvojeet.suvmusic.data.ConnectionState
 import javax.inject.Inject
 
 @HiltViewModel
@@ -52,6 +55,7 @@ class PlayerViewModel @Inject constructor(
     private val lyricsRepository: LyricsRepository,
     private val sleepTimerManager: SleepTimerManager,
     private val sessionManager: SessionManager,
+    private val coListenManager: CoListenManager,
     private val recommendationEngine: RecommendationEngine,
     private val sponsorBlockRepository: SponsorBlockRepository,
     @ApplicationContext private val context: Context
@@ -134,6 +138,7 @@ class PlayerViewModel @Inject constructor(
         observeDownloadStateConsistency()
         observeQueuePositionForAutoplay()
         observeLyricsProviderSettings()
+        observeCoListenState()
     }
     
     private fun observeDownloadStateConsistency() {
@@ -793,6 +798,182 @@ class PlayerViewModel @Inject constructor(
                 // Revert on failure
                 musicPlayer.updateDislikeStatus(currentDislikeState)
             }
+        }
+    }
+    
+    // --- Listen Together Feature ---
+    
+    val coListenSessionState = coListenManager.sessionState
+    val coListenConnectionState = coListenManager.connectionState
+    val coListenSessionEnded = coListenManager.sessionEndedEvent
+    val coListenSyncing = coListenManager.isSyncing
+    val coListenShowSyncingDialog = coListenManager.showSyncingDialog
+
+    fun getCoListenCurrentUserId(): String = coListenManager.getCurrentUserId()
+    
+    fun createCoListenSession() {
+        val currentSong = playerState.value.currentSong
+        val isPlaying = playerState.value.isPlaying
+        val position = playerState.value.currentPosition
+        
+        // Skip sync for a short period to avoid race conditions
+        skipInitialSync = true
+        
+        coListenManager.createSession(
+            currentSong = currentSong,
+            isPlaying = isPlaying,
+            position = position,
+            onSuccess = { code -> 
+                // Clear skip flag after a delay to let Firebase stabilize
+                viewModelScope.launch {
+                    delay(1000)
+                    skipInitialSync = false
+                }
+            },
+            onError = { error ->
+                skipInitialSync = false
+            }
+        )
+    }
+    
+    fun joinCoListenSession(code: String) {
+        coListenManager.joinSession(
+            code,
+             onSuccess = { 
+                 // Success handling
+             },
+             onError = { error ->
+                 // Error handling
+             }
+        )
+    }
+    
+    fun leaveCoListenSession() {
+        coListenManager.leaveSession()
+    }
+
+    fun clearSessionEndedEvent() {
+        coListenManager.clearSessionEndedEvent()
+    }
+
+    fun isCoListenHost(): Boolean = coListenManager.isCurrentUserHost()
+    
+    private var isRemoteUpdate = false
+    private var skipInitialSync = false // To prevent sync race on session creation/join
+    private var lastProcessedTimestamp = 0L // To deduplicate Firebase updates
+    
+    private fun observeCoListenState() {
+        // 1. Observe Remote Changes -> Update Local Player (ONLY for guests, not host)
+        viewModelScope.launch {
+            coListenManager.sessionState.collect { session ->
+                if (session == null) return@collect
+                
+                // HOST should NOT sync FROM Firebase - only PUSH TO it
+                // This prevents the loop where host's own state comes back and triggers actions
+                if (coListenManager.isCurrentUserHost()) return@collect
+                
+                // Skip if we just created/joined (let Firebase stabilize)
+                if (skipInitialSync) return@collect
+                
+                // Skip if this is an update WE pushed (deduplicate by timestamp)
+                if (session.timestamp == lastProcessedTimestamp) return@collect
+                
+                // Skip if we're in the middle of processing another update
+                if (isRemoteUpdate) return@collect
+                
+                val remoteSongId = session.currentSong?.id
+                val currentSongId = playerState.value.currentSong?.id
+                val remoteIsPlaying = session.isPlaying
+                val currentIsPlaying = playerState.value.isPlaying
+                
+                // Mark as processing and remember this timestamp
+                isRemoteUpdate = true
+                lastProcessedTimestamp = session.timestamp
+                
+                try {
+                    // Sync Song
+                    if (remoteSongId != null && remoteSongId != currentSongId) {
+                        // Report that we're starting to buffer
+                        coListenManager.updateBufferingState(true)
+                        
+                        val sessionSong = session.currentSong
+                        val song = Song(
+                            id = sessionSong.id,
+                            title = sessionSong.title,
+                            artist = sessionSong.artist,
+                            album = sessionSong.album,
+                            thumbnailUrl = sessionSong.thumbnailUrl,
+                            duration = sessionSong.duration,
+                            source = try { SongSource.valueOf(sessionSong.source) } catch (e: Exception) { SongSource.YOUTUBE }
+                        )
+                        playSong(song)
+                        
+                        // Wait for buffering to complete (isLoading becomes false)
+                        playerState.map { it.isLoading }.first { !it }
+                        
+                        // Report that we've finished buffering
+                        coListenManager.updateBufferingState(false)
+                        
+                        // Wait for sync to complete (all devices ready)
+                        coListenManager.isSyncing.first { !it }
+                    }
+                    
+                    // Sync Play/Pause (only after sync is complete)
+                    if (remoteIsPlaying != currentIsPlaying) {
+                        if (remoteIsPlaying) play() else pause()
+                        delay(200)
+                    }
+                    
+                    // Sync Position (with drift check)
+                    val currentPos = musicPlayer.playerState.value.currentPosition
+                    val timeDiff = System.currentTimeMillis() - session.timestamp
+                    val expectedPos = session.position + (if (session.isPlaying) timeDiff else 0)
+                    
+                    if (kotlin.math.abs(currentPos - expectedPos) > 3000) { // 3 seconds leeway
+                        seekTo(expectedPos)
+                        delay(200)
+                    }
+                } finally {
+                    // Keep the flag a bit longer to let state settle
+                    delay(500)
+                    isRemoteUpdate = false
+                }
+            }
+        }
+        
+        // 2. Observe buffering state and report to CoListen session (for host)
+        viewModelScope.launch {
+            playerState.map { it.isLoading }.distinctUntilChanged().collect { isLoading ->
+                if (coListenManager.connectionState.value is ConnectionState.Connected) {
+                    if (coListenManager.isCurrentUserHost()) {
+                        coListenManager.updateBufferingState(isLoading)
+                    }
+                }
+            }
+        }
+        
+        // 2. Observe Local Changes -> Push to Firebase
+        viewModelScope.launch {
+             combine(
+                 playerState.map { it.currentSong }.distinctUntilChanged(),
+                 playerState.map { it.isPlaying }.distinctUntilChanged(),
+                 playerState.map { it.currentPosition }.map { it / 1000 }.distinctUntilChanged() // Throttle position updates to ~1s
+             ) { song, isPlaying, _ ->
+                 Triple(song, isPlaying, musicPlayer.playerState.value.currentPosition)
+             }.collectLatest { (song, isPlaying, position) ->
+                 // Skip during initial connection setup
+                 if (skipInitialSync) return@collectLatest
+                 
+                 // Skip if we're processing a remote update (prevent loop)
+                 if (isRemoteUpdate) return@collectLatest
+                 
+                 // Only push if connected
+                 if (coListenManager.connectionState.value is ConnectionState.Connected) {
+                     // Update our timestamp tracker so we don't process our own update
+                     lastProcessedTimestamp = System.currentTimeMillis()
+                     coListenManager.updatePlayerState(song, isPlaying, position)
+                 }
+             }
         }
     }
     

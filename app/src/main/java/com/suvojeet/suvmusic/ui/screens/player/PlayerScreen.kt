@@ -39,6 +39,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -113,6 +114,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import com.suvojeet.suvmusic.ui.components.dialog.CoListenDialog
+import com.suvojeet.suvmusic.ui.components.dialog.SyncingDialog
 
 /**
  * Premium full-screen player with Apple Music-style design.
@@ -284,6 +287,7 @@ fun PlayerScreen(
     var showSleepTimerSheet by remember { mutableStateOf(false) }
     var showOutputDeviceSheet by remember { mutableStateOf(false) }
     var showPlaybackSpeedSheet by remember { mutableStateOf(false) }
+    var showCoListenDialog by remember { mutableStateOf(false) }
 
     // Ringtone states
     var showRingtoneProgress by remember { mutableStateOf(false) }
@@ -522,6 +526,16 @@ fun PlayerScreen(
                                             tint = dominantColors.onBackground
                                         )
                                     }
+                                    
+                                    // Listen Together Button (Landscape)
+                                    IconButton(onClick = { showCoListenDialog = true }) {
+                                        Icon(
+                                            imageVector = Icons.Default.Group,
+                                            contentDescription = "Listen Together",
+                                            tint = dominantColors.onBackground
+                                        )
+                                    }
+
                                     Text(
                                         text = "NOW PLAYING",
                                         style = MaterialTheme.typography.labelMedium,
@@ -625,7 +639,8 @@ fun PlayerScreen(
                             PlayerTopBar(
                                 onBack = onBack,
                                 onShowQueue = { showQueue = true },
-                                dominantColors = dominantColors
+                                dominantColors = dominantColors,
+                                onShowCoListen = { showCoListenDialog = true }
                             )
 
                             Spacer(modifier = Modifier.weight(0.5f))
@@ -931,6 +946,10 @@ fun PlayerScreen(
                     showActionsSheet = false
                     showPlaybackSpeedSheet = true
                 },
+                onListenTogether = {
+                    showActionsSheet = false
+                    showCoListenDialog = true
+                },
                 currentSpeed = playerState.playbackSpeed,
                 onSetRingtone = {
                     showActionsSheet = false
@@ -1071,4 +1090,20 @@ fun PlayerScreen(
             }
         }
     }
+    if (showCoListenDialog) {
+        CoListenDialog(
+            viewModel = playerViewModel,
+            onDismiss = { showCoListenDialog = false }
+        )
+    }
+
+    // Syncing Dialog Overlay
+    val showSyncingDialog by playerViewModel.coListenShowSyncingDialog.collectAsState()
+    val coListenSession by playerViewModel.coListenSessionState.collectAsState()
+    
+    SyncingDialog(
+        isVisible = showSyncingDialog,
+        users = coListenSession?.users?.values?.toList() ?: emptyList(),
+        currentUserId = playerViewModel.getCoListenCurrentUserId()
+    )
 }
