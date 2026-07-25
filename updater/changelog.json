@@ -1,6 +1,13 @@
 {
   "releases": [
     {
+      "versionName": "2.6.2.0",
+      "versionCode": 41,
+      "date": "July 25, 2026",
+      "description": "• YouTube Architecture: Modularized YouTube repository into focused domain services and centralized model parsing.\n• Playlist & Edit Fixes: Fixed silent playlist edit failures, user-editable playlist detection, and playlist creation auth headers.\n• HQ Audio Dynamic Routing: Added daily timezone-based provider and per-request route interceptor with automated circuit breaker.\n• Glassmorphism Visual Polish: Frosted artwork backdrop for player sheets and dialogs.\n• Library Stability: Concurrent isolated section fetches, eliminated refresh double-fetching and collector leaks.\n• Upgraded NewPipeExtractor to v0.26.4.",
+      "isMajorUpdate": false
+    },
+    {
       "versionName": "2.6.1.0",
       "versionCode": 40,
       "date": "July 23, 2026",

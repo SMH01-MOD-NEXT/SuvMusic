@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.6.2.0] - 2026-07-25
+
+### Added
+- **HQ Audio Dynamic Routing & Circuit Breaker**: Introduced daily timezone-based HQ Audio API URL provider and per-request route interceptor with automated circuit breaker for regional edge failover.
+- **Glassmorphism Sheet Styling**: Redesigned player sheets (Song Actions, Song Info, Sleep Timer, Output Device, Related Songs) using frosted artwork blur backdrop (`ArtworkBlurBackdrop`, `ArtGlassSheet`).
+
+### Improved
+- **YouTube Architecture**: Modularized `YouTubeRepository` into focused domain services (`YouTubePlaylistService`, `YouTubeBrowseService`, `YouTubeCatalogService`, `YouTubeLibraryActionService`, `YouTubeLyricsService`, `YouTubeAccountService`) and centralized model parsing into `YouTubeContentParser`.
+- **Library Concurrent Loading**: Isolated remote fetches for library sections into concurrent tasks so single-section failures no longer blank the entire library.
+- **Dependency Updates**: Upgraded NewPipeExtractor to v0.26.4 for improved YouTube playlist continuation handling.
+
+### Fixed
+- **YouTube Playlist Mutations**: Resolved silent playlist edit failures by verifying InnerTube status response bodies.
+- **Editable Playlist Filtering**: Fixed `getUserEditablePlaylists` to use exclusion-based filtering so localized or track-count bylines don't prevent add-to-playlist display.
+- **Playlist Creation**: Fixed `createPlaylist` to correctly append visitor data and auth signatures.
+- **Library Leaks & Refresh**: Fixed collector leaks on filter selection, prevented double-fetching on refresh, and fixed playlist re-derivation in visible lists.
+
 ## [2.6.1.0] - 2026-07-23
 
 ### Added
