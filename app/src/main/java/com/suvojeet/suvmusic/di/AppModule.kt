@@ -35,16 +35,30 @@ object AppModule {
     @Singleton
     fun provideYouTubeRepository(
         sessionManager: SessionManager,
-        jsonParser: com.suvojeet.suvmusic.data.repository.youtube.internal.YouTubeJsonParser,
-        apiClient: com.suvojeet.suvmusic.data.repository.youtube.internal.YouTubeApiClient,
         streamingService: com.suvojeet.suvmusic.data.repository.youtube.streaming.YouTubeStreamingService,
         searchService: com.suvojeet.suvmusic.data.repository.youtube.search.YouTubeSearchService,
+        accountService: com.suvojeet.suvmusic.data.repository.youtube.account.YouTubeAccountService,
+        playlistService: com.suvojeet.suvmusic.data.repository.youtube.playlist.YouTubePlaylistService,
+        browseService: com.suvojeet.suvmusic.data.repository.youtube.browse.YouTubeBrowseService,
+        catalogService: com.suvojeet.suvmusic.data.repository.youtube.catalog.YouTubeCatalogService,
+        libraryActionService: com.suvojeet.suvmusic.data.repository.youtube.library.YouTubeLibraryActionService,
+        lyricsService: com.suvojeet.suvmusic.data.repository.youtube.lyrics.YouTubeLyricsService,
         networkMonitor: com.suvojeet.suvmusic.util.NetworkMonitor,
-        libraryRepository: LibraryRepository,
-        listeningHistoryRepository: com.suvojeet.suvmusic.data.repository.ListeningHistoryRepository,
         @ApplicationScope externalScope: kotlinx.coroutines.CoroutineScope
     ): YouTubeRepository {
-        return YouTubeRepository(sessionManager, jsonParser, apiClient, streamingService, searchService, networkMonitor, libraryRepository, listeningHistoryRepository, externalScope)
+        return YouTubeRepository(
+            sessionManager,
+            streamingService,
+            searchService,
+            accountService,
+            playlistService,
+            browseService,
+            catalogService,
+            libraryActionService,
+            lyricsService,
+            networkMonitor,
+            externalScope
+        )
     }
     
     @Provides
@@ -107,10 +121,29 @@ object AppModule {
         return Gson()
     }
 
+    /**
+     * OkHttp client for HQ Audio traffic only. The route interceptor rewrites the host per
+     * request so [com.suvojeet.suvmusic.data.repository.remote.HqAudioUrlProvider] can
+     * divert away from a failing edge at runtime; keeping it off the shared client means
+     * YouTube traffic never pays for it.
+     */
+    @Provides
+    @Singleton
+    @HqAudioClient
+    fun provideHqAudioOkHttpClient(
+        okHttpClient: OkHttpClient,
+        @ApplicationContext context: Context
+    ): OkHttpClient {
+        com.suvojeet.suvmusic.data.repository.remote.HqAudioUrlProvider.init(context)
+        return okHttpClient.newBuilder()
+            .addInterceptor(com.suvojeet.suvmusic.data.repository.remote.HqAudioRouteInterceptor())
+            .build()
+    }
+
     @Provides
     @Singleton
     fun provideRemoteAudioApiService(
-        okHttpClient: OkHttpClient,
+        @HqAudioClient okHttpClient: OkHttpClient,
         @ApplicationContext context: Context
     ): com.suvojeet.suvmusic.data.repository.remote.RemoteAudioApiService {
         val primaryBaseUrl = com.suvojeet.suvmusic.data.repository.remote.HqAudioUrlProvider.getBaseUrl(context)
@@ -134,7 +167,7 @@ object AppModule {
     @Provides
     @Singleton
     fun provideHqAudioPlaylistApiService(
-        okHttpClient: OkHttpClient,
+        @HqAudioClient okHttpClient: OkHttpClient,
         @ApplicationContext context: Context
     ): com.suvojeet.suvmusic.data.repository.remote.HqAudioPlaylistApiService {
         val primaryBaseUrl = com.suvojeet.suvmusic.data.repository.remote.HqAudioUrlProvider.getBaseUrl(context)

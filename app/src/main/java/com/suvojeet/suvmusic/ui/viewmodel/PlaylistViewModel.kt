@@ -400,17 +400,27 @@ class PlaylistViewModel @Inject constructor(
                                  playlistAuthor == "YouTube User" || 
                                  playlistAuthor?.contains("You", ignoreCase = true) == true
 
-                _uiState.update { it.copy(isEditable = isLocal || isYtEditable || isAuthorYou || playlistId == "LM") }
+                _uiState.update {
+                    it.copy(isEditable = isLocal || isYtEditable || isAuthorYou || playlistId == "LM" || hasRemovableSongs())
+                }
             } catch (e: Exception) {
                 // If uploader is "You", still try to enable editing even if API check fails
                 val playlistAuthor = _uiState.value.playlist?.author
-                val isAuthorYou = playlistAuthor == "You" || 
-                                 playlistAuthor == "YouTube User" || 
+                val isAuthorYou = playlistAuthor == "You" ||
+                                 playlistAuthor == "YouTube User" ||
                                  playlistAuthor?.contains("You", ignoreCase = true) == true
-                _uiState.update { it.copy(isEditable = isAuthorYou || playlistId == "LM") }
+                _uiState.update { it.copy(isEditable = isAuthorYou || playlistId == "LM" || hasRemovableSongs()) }
             }
         }
     }
+
+    /**
+     * Auto-generated playlists like My Top 50 aren't "owned" by anyone, so no ownership
+     * check will ever mark them editable — but YouTube does hand out per-item removal
+     * tokens for them, and the presence of those tokens is what says removal is allowed.
+     */
+    private fun hasRemovableSongs(): Boolean =
+        _uiState.value.playlist?.songs?.any { it.removalFeedbackToken != null } == true
 
     fun createPlaylist(title: String, description: String, isPrivate: Boolean, syncWithYt: Boolean) {
         viewModelScope.launch {
@@ -635,43 +645,12 @@ class PlaylistViewModel @Inject constructor(
         val song = _uiState.value.selectedSong ?: return
         viewModelScope.launch {
             _uiState.update { it.copy(isLoadingPlaylists = true) }
-            val isLocal = targetPlaylistId.startsWith("local_") || targetPlaylistId == "LM"
-            var success = false
-            var message: String? = null
 
-            if (isLocal) {
-                try {
-                    if (libraryRepository.isSongInPlaylist(targetPlaylistId, song.id)) {
-                        success = false
-                        message = "${song.title} is already in this playlist"
-                    } else {
-                        libraryRepository.addSongToPlaylist(targetPlaylistId, song)
-                        success = true
-                        message = "Added ${song.title} to playlist"
-                    }
-                } catch (e: Exception) {
-                    success = false
-                    message = "Failed to add ${song.title}"
-                }
-            } else {
-                success = youTubeRepository.addSongToPlaylist(targetPlaylistId, song.id)
-                message = if (success) "Added ${song.title} to playlist" else "Failed to add to YouTube playlist"
-                if (success) {
-                    // Mirror into the local cache when one already exists so the song shows
-                    // up right away instead of waiting for a full YouTube re-fetch. Skip when
-                    // there's no cache yet, to avoid a partial list hiding the other songs.
-                    try {
-                        val cached = libraryRepository.getCachedPlaylistSongs(targetPlaylistId)
-                        if (cached.isNotEmpty() && cached.none { it.id == song.id }) {
-                            libraryRepository.appendPlaylistSongs(targetPlaylistId, listOf(song), cached.size)
-                        }
-                    } catch (e: Exception) {
-                        // Best-effort cache mirror — the YouTube add already succeeded.
-                    }
-                }
-            }
-            
-            _uiState.update { 
+            val result = youTubeRepository.addSongsToAnyPlaylist(targetPlaylistId, listOf(song))
+            val success = result.isSuccess
+            val message = result.describe(listOf(song))
+
+            _uiState.update {
                 it.copy(
                     isLoadingPlaylists = false,
                     showAddToPlaylistSheet = false,
@@ -680,7 +659,7 @@ class PlaylistViewModel @Inject constructor(
                     errorMessage = if (!success) message else null
                 )
             }
-            
+
             // Reload if the song was added to the currently viewed playlist
             if (success && targetPlaylistId == playlistId) {
                 refreshPlaylist()
@@ -698,35 +677,44 @@ class PlaylistViewModel @Inject constructor(
 
     fun removeSongFromPlaylist(song: Song) {
         viewModelScope.launch {
-            val isLocal = playlistId.startsWith("local_") || playlistId == "LM"
-            var success = false
-            var message: String? = null
+            val success: Boolean
+            val message: String
 
-            if (isLocal) {
-                try {
+            if (isLocallyBackedPlaylist()) {
+                success = try {
                     libraryRepository.removeSongFromPlaylist(playlistId, song.id)
-                    success = true
-                    message = "Removed ${song.title} from playlist"
+                    true
                 } catch (e: Exception) {
-                    success = false
-                    message = "Failed to remove ${song.title}"
+                    false
                 }
+                message = if (success) "Removed ${song.title} from playlist" else "Failed to remove ${song.title}"
             } else {
                 val setVideoId = song.setVideoId
-                if (setVideoId != null) {
-                    success = youTubeRepository.removeSongFromPlaylist(playlistId, setVideoId)
-                    message = if (success) "Removed ${song.title} from playlist" else "Failed to remove from YouTube playlist"
-                } else {
-                    success = false
-                    message = "Cannot remove this song from YouTube playlist"
+                when {
+                    // Auto-generated playlists (My Top 50 and friends) reject the normal
+                    // remove action, so their per-item feedback token is the only way out.
+                    song.removalFeedbackToken != null &&
+                        (youTubeRepository.isAutoGeneratedPlaylist(playlistId) || setVideoId == null) -> {
+                        success = youTubeRepository.removeSongsFromAutoPlaylist(listOf(song))
+                        message = if (success) "Removed ${song.title}" else "Couldn't remove ${song.title}"
+                    }
+                    setVideoId != null -> {
+                        success = youTubeRepository.removeSongFromPlaylist(playlistId, setVideoId)
+                        message = if (success) "Removed ${song.title} from playlist"
+                        else "Failed to remove from YouTube playlist"
+                    }
+                    else -> {
+                        success = false
+                        message = "This playlist doesn't allow removing songs"
+                    }
                 }
             }
-            
+
             if (success) {
                 refreshPlaylist()
             }
 
-            _uiState.update { 
+            _uiState.update {
                 it.copy(
                     successMessage = if (success) message else null,
                     errorMessage = if (!success) message else null
@@ -734,6 +722,11 @@ class PlaylistViewModel @Inject constructor(
             }
         }
     }
+
+    /** Playlists whose songs live in the local database rather than on YouTube. */
+    private fun isLocallyBackedPlaylist(): Boolean =
+        playlistId.startsWith("local_") || playlistId == "LM" ||
+            playlistId == "CACHED_ALL" || playlistId == "DEVICE_SONGS"
 
     fun clearMessages() {
         _uiState.update { it.copy(successMessage = null, errorMessage = null) }
@@ -829,10 +822,11 @@ class PlaylistViewModel @Inject constructor(
     fun removeSelectedSongs() {
         val selectedIds = _uiState.value.selectedSongIds
         if (selectedIds.isEmpty()) return
-        
+        val selectedSongs = _uiState.value.playlist?.songs.orEmpty()
+            .filter { (it.setVideoId ?: it.id) in selectedIds }
+
         viewModelScope.launch {
-            val isLocal = playlistId.startsWith("local_") || playlistId == "LM"
-            val success = if (isLocal) {
+            val success = if (isLocallyBackedPlaylist()) {
                 try {
                     selectedIds.forEach { songId ->
                         libraryRepository.removeSongFromPlaylist(playlistId, songId)
@@ -842,12 +836,25 @@ class PlaylistViewModel @Inject constructor(
                     false
                 }
             } else {
-                youTubeRepository.removeSongsFromPlaylist(playlistId, selectedIds.toList())
+                // Songs carrying a feedback token belong to an auto-generated playlist and
+                // have to go through /feedback; the rest use the normal playlist edit.
+                val byToken = selectedSongs.filter { it.removalFeedbackToken != null }
+                val bySetVideoId = selectedSongs.mapNotNull { it.setVideoId }
+                    .filter { it in selectedIds }
+
+                val tokenRemoved = byToken.isEmpty() ||
+                    youTubeRepository.removeSongsFromAutoPlaylist(byToken)
+                val editRemoved = bySetVideoId.isEmpty() ||
+                    youTubeRepository.removeSongsFromPlaylist(playlistId, bySetVideoId)
+
+                tokenRemoved && editRemoved && (byToken.isNotEmpty() || bySetVideoId.isNotEmpty())
             }
-            
+
             if (success) {
                 clearSelection()
                 refreshPlaylist()
+            } else {
+                _uiState.update { it.copy(errorMessage = "Couldn't remove the selected songs") }
             }
         }
     }

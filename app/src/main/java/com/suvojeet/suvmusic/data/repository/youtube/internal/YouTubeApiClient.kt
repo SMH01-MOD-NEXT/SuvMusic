@@ -146,6 +146,34 @@ class YouTubeApiClient @Inject constructor(
     }
 
     /**
+     * POST an arbitrary body to an InnerTube endpoint, signing it only if we happen to be
+     * logged in.
+     *
+     * For content that works either way — lyrics, watch-next queues — this keeps one code
+     * path instead of an authenticated and an anonymous copy, and it still benefits from a
+     * session when there is one.
+     */
+    suspend fun fetchPublicApiWithBody(
+        endpoint: String,
+        bodyJson: String,
+        hl: String = YouTubeConfig.DEFAULT_HL,
+        gl: String = YouTubeConfig.DEFAULT_GL
+    ): String = withContext(Dispatchers.IO) {
+        val cookies = sessionManager.getCookies()
+        val authUser = sessionManager.getAuthUserIndex()
+        val fullBody = "{ ${contextJson(hl, gl)}, ${stripOuterBraces(bodyJson)} }"
+
+        val request = okhttp3.Request.Builder()
+            .url("${YouTubeConfig.BASE_URL}/$endpoint")
+            .post(fullBody.toRequestBody("application/json".toMediaType()))
+            // The helper omits the authenticated headers when cookies are null/blank.
+            .addYouTubeAuthHeaders(cookies, authUser)
+            .build()
+
+        executeForBody(request)
+    }
+
+    /**
      * Fetch public YouTube Music API without authentication.
      * Used for charts, trending, and public browse content.
      * @param params Optional browse params token, for mood/genre categories that require one.
@@ -180,34 +208,64 @@ class YouTubeApiClient @Inject constructor(
      * @param endpoint API endpoint path (e.g., "like/like", "playlist/create")
      * @param innerBody JSON body content (without context wrapper)
      */
-    suspend fun performAuthenticatedAction(endpoint: String, innerBody: String): Boolean = withContext(Dispatchers.IO) {
-        if (!sessionManager.isLoggedIn()) return@withContext false
-        val cookies = sessionManager.getCookies() ?: return@withContext false
-        
+    suspend fun performAuthenticatedAction(endpoint: String, innerBody: String): Boolean =
+        performAuthenticatedActionForBody(endpoint, innerBody) != null
+
+    /**
+     * Like [performAuthenticatedAction] but returns the response body, for callers that
+     * need something out of it (a new playlist id, say). Null means the action failed.
+     */
+    suspend fun performAuthenticatedActionForBody(endpoint: String, innerBody: String): String? = withContext(Dispatchers.IO) {
+        if (!sessionManager.isLoggedIn()) return@withContext null
+        val cookies = sessionManager.getCookies() ?: return@withContext null
+
         val url = "${YouTubeConfig.BASE_URL}/$endpoint"
         // Don't even attempt an authenticated action if we can't sign the request.
-        if (YouTubeAuthUtils.getAuthorizationHeader(cookies) == null) return@withContext false
+        if (YouTubeAuthUtils.getAuthorizationHeader(cookies) == null) return@withContext null
         val authUser = sessionManager.getAuthUserIndex()
+        val visitorData = visitorDataProvider.get()
 
         val fullBody = "{ ${contextJson(YouTubeConfig.DEFAULT_HL, YouTubeConfig.DEFAULT_GL)}, ${stripOuterBraces(innerBody)} }"
 
         val request = okhttp3.Request.Builder()
             .url(url)
             .post(fullBody.toRequestBody("application/json".toMediaType()))
-            .addYouTubeAuthHeaders(cookies, authUser)
+            .addYouTubeAuthHeaders(cookies, authUser, visitorData)
             .build()
 
         try {
             okHttpClient.newCall(request).execute().use { response ->
+                val body = try { response.body?.string() } catch (e: Exception) { null }
                 if (!response.isSuccessful) {
-                    val errorBody = try { response.body?.string() } catch (e: Exception) { null }
-                    android.util.Log.e("YouTubeApiClient", "Action failed: $endpoint. Code: ${response.code}, Body: $errorBody")
-                    return@withContext false
+                    android.util.Log.e("YouTubeApiClient", "Action failed: $endpoint. Code: ${response.code}, Body: $body")
+                    return@withContext null
                 }
-                true
+                if (isRejected(body)) {
+                    android.util.Log.e("YouTubeApiClient", "Action rejected: $endpoint. Body: $body")
+                    return@withContext null
+                }
+                body ?: ""
             }
         } catch (e: Exception) {
             android.util.Log.e("YouTubeApiClient", "Action error: $endpoint", e)
+            null
+        }
+    }
+
+    /**
+     * InnerTube answers a rejected mutation with HTTP 200 and a failed status in the body —
+     * an edit that never happened otherwise reads as success, which is what made
+     * "add to playlist" appear to work while nothing was written.
+     */
+    private fun isRejected(body: String?): Boolean {
+        if (body.isNullOrBlank()) return false
+        return try {
+            val json = JSONObject(body)
+            if (json.has("error")) return true
+            val status = json.optString("status")
+            status.isNotBlank() && !status.equals("STATUS_SUCCEEDED", ignoreCase = true)
+        } catch (e: Exception) {
+            // Not JSON we understand — don't invent a failure.
             false
         }
     }
@@ -225,6 +283,19 @@ class YouTubeApiClient @Inject constructor(
             put("actions", JSONArray(actions))
         }
         return performAuthenticatedAction("browse/edit_playlist", body.toString())
+    }
+
+    /**
+     * Send a one-shot feedback token.
+     *
+     * This is the only removal path YouTube offers for auto-generated playlists (My Top 50,
+     * Discover Mix, …), which reject `edit_playlist` outright. The token comes from the
+     * item's own overflow menu and is consumed by this call.
+     */
+    suspend fun sendFeedback(feedbackTokens: List<String>): Boolean {
+        if (feedbackTokens.isEmpty()) return false
+        val body = JSONObject().put("feedbackTokens", JSONArray(feedbackTokens))
+        return performAuthenticatedAction("feedback", body.toString())
     }
 
     /**

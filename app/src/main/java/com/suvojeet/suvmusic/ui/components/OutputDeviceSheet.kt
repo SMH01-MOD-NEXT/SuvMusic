@@ -73,13 +73,12 @@ fun OutputDeviceSheet(
     }
     
     if (isVisible) {
-        ModalBottomSheet(
+        // Frosts against the now-playing artwork when opened from the player.
+        com.suvojeet.suvmusic.ui.components.glass.ArtGlassSheet(
             onDismissRequest = onDismiss,
             sheetState = sheetState,
-            containerColor = finalBackgroundColor,
-            dragHandle = null,
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-            contentWindowInsets = { WindowInsets(0) }
+            fallbackContainerColor = finalBackgroundColor,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
         ) {
             Column(
                 modifier = Modifier

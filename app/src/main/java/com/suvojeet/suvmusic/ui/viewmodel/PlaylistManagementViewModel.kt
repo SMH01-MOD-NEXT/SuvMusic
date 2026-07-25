@@ -142,73 +142,51 @@ class PlaylistManagementViewModel @Inject constructor(
             }
             
             if (playlistId != null) {
-                // If there are selected songs, add them to the new playlist
-                if (songs.isNotEmpty()) {
-                    var success = false
-                    if (syncWithYt && sessionManager.isLoggedIn() && !playlistId.startsWith("local_")) {
-                        success = youTubeRepository.addSongsToPlaylist(playlistId, songs.map { it.id })
-                        if (success) {
-                            // Persist a local copy so the freshly-created synced playlist and
-                            // its songs show up immediately instead of waiting for a YouTube
-                            // re-fetch (the "songs don't sync well" symptom on create).
-                            try {
-                                libraryRepository.savePlaylist(
-                                    Playlist(
-                                        id = playlistId,
-                                        title = title,
-                                        author = "You",
-                                        thumbnailUrl = songs.firstOrNull()?.thumbnailUrl,
-                                        songs = songs
-                                    )
-                                )
-                            } catch (e: Exception) {
-                                // Best-effort — the songs already synced to YouTube.
-                            }
-                        }
-                    } else {
-                        var successCount = 0
-                        for (song in songs) {
-                             try {
-                                 libraryRepository.addSongToPlaylist(playlistId, song)
-                                 successCount++
-                             } catch (e: Exception) {
-                                 // Skip
-                             }
-                        }
-                        success = successCount > 0
-                    }
-
-                    if (success) {
-                        val msg = if (songs.size == 1) "Created \"$title\" and added ${songs[0].title}"
-                                 else "Created \"$title\" and added ${songs.size} songs"
-                        _uiState.update { 
-                            it.copy(
-                                isCreatingPlaylist = false,
-                                showCreatePlaylistDialog = false,
-                                showAddToPlaylistSheet = false,
-                                selectedSongs = emptyList(),
-                                successMessage = msg
-                            )
-                        }
-                    } else {
-                        _uiState.update { 
-                            it.copy(
-                                isCreatingPlaylist = false,
-                                showCreatePlaylistDialog = false,
-                                successMessage = "Created \"$title\""
-                            )
-                        }
-                    }
-                } else {
-                    _uiState.update { 
+                if (songs.isEmpty()) {
+                    _uiState.update {
                         it.copy(
                             isCreatingPlaylist = false,
                             showCreatePlaylistDialog = false,
                             successMessage = "Created \"$title\""
                         )
                     }
+                } else {
+                    val added = youTubeRepository.addSongsToAnyPlaylist(playlistId, songs).isSuccess
+
+                    if (added && !playlistId.startsWith("local_")) {
+                        // Persist a local copy so a freshly-created synced playlist shows its
+                        // songs immediately instead of waiting for a YouTube re-fetch.
+                        try {
+                            libraryRepository.savePlaylist(
+                                Playlist(
+                                    id = playlistId,
+                                    title = title,
+                                    author = "You",
+                                    thumbnailUrl = songs.firstOrNull()?.thumbnailUrl,
+                                    songs = songs
+                                )
+                            )
+                        } catch (e: Exception) {
+                            // Best-effort — the songs already synced to YouTube.
+                        }
+                    }
+
+                    val msg = when {
+                        !added -> "Created \"$title\""
+                        songs.size == 1 -> "Created \"$title\" and added ${songs[0].title}"
+                        else -> "Created \"$title\" and added ${songs.size} songs"
+                    }
+                    _uiState.update {
+                        it.copy(
+                            isCreatingPlaylist = false,
+                            showCreatePlaylistDialog = false,
+                            showAddToPlaylistSheet = false,
+                            selectedSongs = emptyList(),
+                            successMessage = msg
+                        )
+                    }
                 }
-                
+
                 // Refresh playlists
                 loadUserPlaylists()
             } else {
@@ -228,87 +206,23 @@ class PlaylistManagementViewModel @Inject constructor(
     fun addSongsToPlaylist(playlistId: String) {
         val songs = _uiState.value.selectedSongs
         if (songs.isEmpty()) return
-        
+
         viewModelScope.launch {
             _uiState.update { it.copy(isAddingSong = true) }
-            
-            var successCount = 0
-            var lastMessage: String? = null
 
-            if (playlistId.startsWith("local_")) {
-                for (song in songs) {
-                    try {
-                        // 1. Check for duplicates
-                        if (libraryRepository.isSongInPlaylist(playlistId, song.id)) {
-                            lastMessage = "${song.title} is already in this playlist"
-                        } else {
-                            // 2. Add song
-                            libraryRepository.addSongToPlaylist(playlistId, song)
-                            
-                            // 3. Auto-update thumbnail if playlist has none
-                            val playlistItem = libraryRepository.getPlaylistById(playlistId)
-                            if (playlistItem != null && playlistItem.thumbnailUrl.isNullOrBlank()) {
-                                libraryRepository.updatePlaylistThumbnail(playlistId, song.thumbnailUrl)
-                            }
-                            
-                            successCount++
-                        }
-                    } catch (e: Exception) {
-                        lastMessage = "Failed to add ${song.title}"
-                    }
-                }
-            } else {
-                val success = youTubeRepository.addSongsToPlaylist(playlistId, songs.map { it.id })
-                if (success) {
-                    successCount = songs.size
-                    // Mirror into the local song cache so the additions show up immediately
-                    // instead of waiting for a full YouTube re-fetch (the "doesn't sync well"
-                    // symptom).
-                    mirrorAddToLocalCacheIfCached(playlistId, songs)
-                } else {
-                    lastMessage = "Failed to add songs to YouTube"
-                }
-            }
-            
-            val success = successCount > 0
-            val finalMessage = when {
-                songs.size == 1 && successCount == 1 -> "Added ${songs[0].title} to playlist"
-                songs.size == 1 && successCount == 0 -> lastMessage ?: "Failed to add to playlist"
-                successCount == songs.size -> "Added $successCount songs to playlist"
-                successCount > 0 -> "Added $successCount of ${songs.size} songs to playlist"
-                else -> lastMessage ?: "Failed to add songs to playlist"
-            }
-            
-            _uiState.update { 
+            val result = youTubeRepository.addSongsToAnyPlaylist(playlistId, songs)
+            val success = result.isSuccess
+            val message = result.describe(songs)
+
+            _uiState.update {
                 it.copy(
                     isAddingSong = false,
                     showAddToPlaylistSheet = false,
                     selectedSongs = emptyList(),
-                    successMessage = if (success) finalMessage else null,
-                    errorMessage = if (!success) finalMessage else null
+                    successMessage = if (success) message else null,
+                    errorMessage = if (!success) message else null
                 )
             }
-        }
-    }
-    
-    /**
-     * Mirror a YouTube playlist add into the local song cache, but ONLY when a local
-     * cache for this playlist already exists. Appending to an existing cache is safe (the
-     * other songs are already there). We deliberately skip playlists with no cache yet —
-     * writing a partial list would make the local-first loader show only the newly added
-     * songs and hide the rest until a full re-fetch.
-     */
-    private suspend fun mirrorAddToLocalCacheIfCached(playlistId: String, songs: List<Song>) {
-        try {
-            val cached = libraryRepository.getCachedPlaylistSongs(playlistId)
-            if (cached.isEmpty()) return
-            val existingIds = cached.map { it.id }.toSet()
-            val toAdd = songs.filter { it.id !in existingIds }
-            if (toAdd.isNotEmpty()) {
-                libraryRepository.appendPlaylistSongs(playlistId, toAdd, cached.size)
-            }
-        } catch (e: Exception) {
-            // Best-effort cache mirror — the authoritative add already succeeded on YouTube.
         }
     }
 

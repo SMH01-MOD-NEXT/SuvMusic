@@ -102,12 +102,12 @@ fun SleepTimerSheet(
     }
     
     if (isVisible) {
-        ModalBottomSheet(
+        // Frosts against the now-playing artwork when opened from the player.
+        com.suvojeet.suvmusic.ui.components.glass.ArtGlassSheet(
             onDismissRequest = onDismiss,
             sheetState = sheetState,
-            containerColor = finalBackgroundColor,
-            contentWindowInsets = { androidx.compose.foundation.layout.WindowInsets(0) },
-            dragHandle = { BottomSheetDefaults.DragHandle() }
+            fallbackContainerColor = finalBackgroundColor,
+            showDragHandle = true
         ) {
             Column(
                 modifier = Modifier

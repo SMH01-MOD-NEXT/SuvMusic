@@ -58,25 +58,38 @@ fun RelatedSheet(
     val backgroundColor = if (isDarkTheme) Color.Black else MaterialTheme.colorScheme.surface
     val contentColor = if (isDarkTheme) Color.White else Color.Black
     val secondaryContentColor = contentColor.copy(alpha = 0.6f)
+    val glassArtwork = com.suvojeet.suvmusic.ui.components.glass.LocalGlassArtwork.current
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(backgroundColor)
     ) {
-        // Gradient Overlay
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            dominantColors.primary.copy(alpha = if (isDarkTheme) 0.15f else 0.1f),
-                            backgroundColor
+        // Related songs sit inside the player, so they get the player's own frosted
+        // backdrop rather than a flat panel; without artwork it stays a plain tinted
+        // surface.
+        if (!glassArtwork?.artworkUrl.isNullOrBlank()) {
+            com.suvojeet.suvmusic.ui.components.glass.ArtworkBlurBackdrop(
+                artworkUrl = glassArtwork!!.artworkUrl,
+                isDarkTheme = isDarkTheme,
+                dominantColors = dominantColors,
+                modifier = Modifier.fillMaxSize(),
+                scrimAlpha = if (isDarkTheme) 0.72f else 0.60f
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                dominantColors.primary.copy(alpha = if (isDarkTheme) 0.15f else 0.1f),
+                                backgroundColor
+                            )
                         )
                     )
-                )
-        )
+            )
+        }
 
         Column(
             modifier = Modifier

@@ -22,6 +22,7 @@ import com.suvojeet.suvmusic.service.PlaylistImportService
 import com.suvojeet.suvmusic.util.SpotifyImportHelper
 import com.suvojeet.suvmusic.util.PlaylistImportHelper
 import com.suvojeet.suvmusic.util.PlaylistExportHelper
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -172,14 +173,24 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Starts observing the full liked-songs list, which is only needed once the user
+     * actually opens it.
+     *
+     * Guarded because the Songs filter calls this every time it is selected, and each call
+     * used to launch another collector on a flow that never completes — so switching tabs
+     * repeatedly piled up duplicate collectors for the lifetime of the screen.
+     */
     fun loadLikedSongs() {
-        // Load full liked songs list only when user actually navigates to liked songs
-        viewModelScope.launch {
+        if (likedSongsJob?.isActive == true) return
+        likedSongsJob = viewModelScope.launch {
             libraryRepository.getCachedPlaylistSongsFlow("LM").collect { songs ->
                 _uiState.update { it.copy(likedSongs = songs) }
             }
         }
     }
+
+    private var likedSongsJob: kotlinx.coroutines.Job? = null
 
     private fun schedulePeriodicSync() {
         if (!sessionManager.isLoggedIn()) return
@@ -242,49 +253,28 @@ class LibraryViewModel @Inject constructor(
 
     fun loadData(forceRefresh: Boolean = false, preloadedLikedSongs: List<Song>? = null) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
+            _uiState.update { it.copy(isLoading = true, error = null) }
             try {
-                // Load local audio
                 loadLocalData()
 
-                // Liked songs are now observed via Flow, no need to fetch here manually
-                // But if it's the first run and empty, we might want to trigger a sync
-                // observeLikedSongs takes care of updates.
-                
-                // If we have preloaded songs (e.g. from refresh), we don't need to do anything as flow updates
-                // But for force refresh logic, we might need to trigger sync.
+                // Liked songs arrive through observeLikedSongs' flow, so there is nothing
+                // to fetch for them here.
 
-                // Load library playlists
                 if (sessionManager.isLoggedIn()) {
-                    // Optimization: Show cached playlists immediately to prevent UI blocking/delay
+                    // Show the cached playlists first so the grid isn't empty while the
+                    // network catches up.
                     val cachedPlaylists = sessionManager.getCachedLibraryPlaylistsSync()
                     if (cachedPlaylists.isNotEmpty()) {
-                        _uiState.update { it.copy(remotePlaylists = cachedPlaylists) }
+                        setRemotePlaylists(cachedPlaylists)
                     }
 
-                    // Then fetch fresh data from network
-                    val playlists = youTubeRepository.getUserPlaylists(autoSave = false)
-                    _uiState.update { it.copy(remotePlaylists = playlists) }
-
-                    val artists = youTubeRepository.getLibraryArtists()
-                    _uiState.update { it.copy(libraryArtists = artists) }
-
-                    val albums = youTubeRepository.getLibraryAlbums()
-                    _uiState.update { it.copy(libraryAlbums = albums) }
-
-                    // Fetch Top 50 (RTM) Count
-                    try {
-                        val top50 = youTubeRepository.getPlaylist("RTM", autoSave = false)
-                        _uiState.update { it.copy(top50SongCount = top50.songs.size) }
-                    } catch (e: Exception) {
-                        // Ignore failure for optional smart playlist
-                    }
+                    fetchRemoteLibrary()
                 }
 
                 loadCachedSongCount()
 
                 if (forceRefresh && sessionManager.isLoggedIn()) {
-                    refresh()
+                    syncLikedSongs()
                 }
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.message) }
@@ -294,18 +284,46 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Fetches the remote library sections concurrently, each isolated from the others.
+     *
+     * These used to run in sequence under a single try/catch, so one failing call (a
+     * flaky artists fetch, say) skipped everything after it and blanked the rest of the
+     * library. Now a section that fails simply keeps whatever it was already showing.
+     */
+    private suspend fun fetchRemoteLibrary() = kotlinx.coroutines.coroutineScope {
+        val playlists = async { runCatching { youTubeRepository.getUserPlaylists(autoSave = false) }.getOrNull() }
+        val artists = async { runCatching { youTubeRepository.getLibraryArtists() }.getOrNull() }
+        val albums = async { runCatching { youTubeRepository.getLibraryAlbums() }.getOrNull() }
+        val top50 = async { runCatching { youTubeRepository.getPlaylist("RTM", autoSave = false).songs.size }.getOrNull() }
+
+        playlists.await()?.takeIf { it.isNotEmpty() }?.let { fresh -> setRemotePlaylists(fresh) }
+        artists.await()?.takeIf { it.isNotEmpty() }?.let { fresh ->
+            _uiState.update { it.copy(libraryArtists = fresh) }
+        }
+        albums.await()?.takeIf { it.isNotEmpty() }?.let { fresh ->
+            _uiState.update { it.copy(libraryAlbums = fresh) }
+        }
+        top50.await()?.let { count ->
+            _uiState.update { it.copy(top50SongCount = count) }
+        }
+    }
+
     fun refresh() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isRefreshing = true) }
+            _uiState.update { it.copy(isRefreshing = true, error = null) }
             try {
-                if (sessionManager.isLoggedIn()) {
-                    syncLikedSongs() // Trigger background sync
-                    youTubeRepository.getUserPlaylists(autoSave = false)
-                    youTubeRepository.getLibraryArtists()
-                    youTubeRepository.getLibraryAlbums()
+                if (!youTubeRepository.isOnline()) {
+                    _uiState.update { it.copy(error = "You're offline — showing saved library") }
+                    return@launch
                 }
+
+                if (sessionManager.isLoggedIn()) {
+                    syncLikedSongs() // Enqueues background work; doesn't block the refresh
+                    fetchRemoteLibrary()
+                }
+                loadLocalData()
                 loadCachedSongCount()
-                loadData(forceRefresh = false)
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = "Refresh failed: ${e.message}") }
             } finally {
@@ -314,12 +332,16 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
+    fun clearError() {
+        _uiState.update { it.copy(error = null) }
+    }
+
     private fun observeLibraryPlaylists() {
         viewModelScope.launch {
             libraryRepository.getSavedPlaylists().collect { displayItems ->
                 _uiState.update { state ->
-                    // Combined list should always be remote playlists + saved/local playlists from DB.
-                    // This way, removing from DB correctly reflects in the UI.
+                    // Combined list is always remote playlists + saved/local playlists from
+                    // the DB, so a deletion in either place shows up straight away.
                     val combined = (state.remotePlaylists + displayItems).distinctBy { it.id }
                     rawPlaylists = combined
                     state.copy(
@@ -328,6 +350,24 @@ class LibraryViewModel @Inject constructor(
                     )
                 }
             }
+        }
+    }
+
+    /**
+     * Publishes a new set of remote playlists and re-derives the visible list from it.
+     *
+     * Writing `remotePlaylists` alone wasn't enough: the visible list is only recomputed
+     * when the saved-playlists flow emits, so freshly fetched YouTube playlists stayed
+     * invisible until something happened to the local database.
+     */
+    private fun setRemotePlaylists(remote: List<PlaylistDisplayItem>) {
+        _uiState.update { state ->
+            val combined = (remote + state.userPlaylists).distinctBy { it.id }
+            rawPlaylists = combined
+            state.copy(
+                remotePlaylists = remote,
+                playlists = presentPlaylists(combined, state.sortOption, state.librarySearchQuery)
+            )
         }
     }
 

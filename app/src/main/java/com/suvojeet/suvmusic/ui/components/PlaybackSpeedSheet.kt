@@ -50,12 +50,13 @@ fun PlaybackSpeedSheet(
     val accentColor = dominantColors?.accent ?: MaterialTheme.colorScheme.primary
 
     if (isVisible) {
-        ModalBottomSheet(
+        // Frosts against the now-playing artwork when opened from the player, so the
+        // controls read as the same pane of glass as the screen behind them.
+        com.suvojeet.suvmusic.ui.components.glass.ArtGlassSheet(
             onDismissRequest = onDismiss,
             sheetState = sheetState,
-            containerColor = backgroundColor,
-            contentWindowInsets = { WindowInsets(0) },
-            dragHandle = null,
+            fallbackContainerColor = backgroundColor,
+            contentColor = contentColor,
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
         ) {
             Column(

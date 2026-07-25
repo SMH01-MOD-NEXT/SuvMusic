@@ -80,26 +80,29 @@ fun SongInfoSheet(
     }
     
     if (isVisible) {
-        ModalBottomSheet(
+        // Frosts against the now-playing artwork when opened from the player.
+        com.suvojeet.suvmusic.ui.components.glass.ArtGlassSheet(
             onDismissRequest = onDismiss,
             sheetState = sheetState,
-            containerColor = if (isDarkTheme) Color.Black.copy(alpha = 0.95f) else MaterialTheme.colorScheme.surface,
-            dragHandle = { 
-                BottomSheetDefaults.DragHandle(
-                    color = finalDominantColors.onBackground.copy(alpha = 0.2f)
-                )
-            },
-            contentWindowInsets = { WindowInsets(0) },
+            fallbackContainerColor = if (isDarkTheme) Color.Black.copy(alpha = 0.95f) else MaterialTheme.colorScheme.surface,
+            contentColor = finalDominantColors.onBackground,
+            showDragHandle = true,
             shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
         ) {
+            // The sheet's own tint gradient ends opaque, which would paint over the
+            // frosted backdrop — so it only runs when there is no glass artwork behind.
+            val hasGlassBackdrop =
+                !com.suvojeet.suvmusic.ui.components.glass.LocalGlassArtwork.current?.artworkUrl.isNullOrBlank()
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                finalDominantColors.primary.copy(alpha = if (isDarkTheme) 0.15f else 0.1f),
-                                if (isDarkTheme) Color.Black else MaterialTheme.colorScheme.surface
+                    .then(
+                        if (hasGlassBackdrop) Modifier else Modifier.background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    finalDominantColors.primary.copy(alpha = if (isDarkTheme) 0.15f else 0.1f),
+                                    if (isDarkTheme) Color.Black else MaterialTheme.colorScheme.surface
+                                )
                             )
                         )
                     )

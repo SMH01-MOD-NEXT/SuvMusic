@@ -377,7 +377,15 @@ fun PlayerScreen(
         PiPPlayerContent(song = song, isVideoMode = playerState.isVideoMode, player = player)
     } else {
       androidx.compose.runtime.CompositionLocalProvider(
-        com.suvojeet.suvmusic.ui.screens.player.components.LocalCurrentDownloadProgress provides currentDownloadProgress
+        com.suvojeet.suvmusic.ui.screens.player.components.LocalCurrentDownloadProgress provides currentDownloadProgress,
+        // Publishes the current artwork so every sheet opened from the player frosts
+        // against the same backdrop instead of painting its own flat slab over it.
+        com.suvojeet.suvmusic.ui.components.glass.LocalGlassArtwork provides
+            com.suvojeet.suvmusic.ui.components.glass.GlassArtwork(
+                artworkUrl = song?.thumbnailUrl?.takeIf { !playerState.isVideoMode },
+                colors = dominantColors,
+                isDarkTheme = isAppInDarkTheme
+            )
       ) {
         Box(modifier = Modifier.fillMaxSize().background(playerBackgroundColor).graphicsLayer { alpha = bgLoadingAlpha }) {
             // Background: every player style now shares the transparent "liquid glass"

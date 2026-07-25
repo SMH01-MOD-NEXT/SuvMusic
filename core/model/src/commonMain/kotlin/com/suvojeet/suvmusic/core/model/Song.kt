@@ -23,6 +23,10 @@ data class Song(
     val streamUrl: String? = null, // For YouTube, this is resolved at playback time
     val localUri: String? = null, // Stringified URI for local files
     val setVideoId: String? = null, // Unique ID for this song instance in a playlist (for reordering)
+    // One-shot token that removes this item from an auto-generated playlist (My Top 50,
+    // Discover Mix, …). Those playlists reject the normal edit_playlist remove action, so
+    // this token from the item's own menu is the only way to take a song out of them.
+    val removalFeedbackToken: String? = null,
     val artistId: String? = null, // Artist browse ID for navigation to artist screen
     val originalSource: SongSource? = null, // Original source before download (for credits display)
     val isVideo: Boolean = false, // Whether this item is a video (vs official song)
